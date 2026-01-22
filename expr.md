@@ -31,7 +31,7 @@ double_literal  := ['-'] <digits> '.' <digits>
 boolean_literal := 'true' | 'false'
 nothing_literal := '?'
 
-reference       := '*' identifier [ '[' index ']' ]
+reference       := '*' identifier ( '[' index ']' )*
 identifier      := <letter_or_underscore> <alphanumeric_or_underscore>*
 index           := integer_literal | string_literal | reference | expression
 ```
@@ -64,7 +64,7 @@ index_spec          := ['!'] ( reference | integer_literal )
 | `$(*var)` | Interpolated string |
 | `$#(*var)` | Count/length of collection or string |
 | `$?(*cond? *a : *b)` | `*a` if `*cond` is truthy, else `*b` |
-| `$?(*a\|*b\|*c)` | First non-Nothing value |
+| `$?(*a\|*b\|*c)` | First non-nothing value |
 | `$(1\|2\|3)[*i]` | Element at index `*i` |
 | `$(1\|2\|3)[!*i]` | Element at index `*i % count` (wrap-around) |
 | `$(a\|b\|c)[%]` | Random element |
@@ -93,7 +93,7 @@ index_spec          := ['!'] ( reference | integer_literal )
 | `*` | Multiply | Multiply | N/A | N/A | N/A |
 | `/` | Divide (floor) | Divide | N/A | N/A | N/A |
 | `%` | Modulo | N/A | N/A | N/A | N/A |
-| `==` | Equal | Equal | Equal (case-insensitive) | Deep equal | Equal |
+| `==` | Equal | Equal | Equal (case-sensitive) | Deep equal | Equal |
 | `!=` | Not equal | Not equal | Not equal | Not deep equal | Not equal |
 
 ## Variable Resolution

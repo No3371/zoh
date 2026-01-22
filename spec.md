@@ -1,52 +1,168 @@
 # ZOH
 
-**ZOH** is a narrative scripting language designed for interactive storytelling. Whether you're building visual novels, branching dialogues, text adventures, or cinematic sequences—ZOH provides a clean, expressive syntax that lets writers focus on the story while giving developers the power they need.
+ZOH is an embedded scripting language built for storytelling but authored and run like a general programming language.
 
-## Why ZOH?
+## Everything is a Verb
 
-Narrative scripting languages often have original design that provides very different development experience from general programming languages. While they usually packs powerful features specialized for presenting text-based stories, 
+Everything in ZOH is a *verb*. Characters `/converse`. Scenes `/show`. Music `/play`. You're not writing a story—you're directing a cast.
 
-**For Writers:**
-- Write dialogue naturally with minimal syntax noise
-- Focus on story flow, not implementation details
-- Preview and test stories without a full game build
+Even the core mechanics of ZOH are built on verbs. Want to keep track of a variable? `/set` it. Want to control the flow? `/if` it. Want to loop? `/while` it.
 
-**For Developers:**
-- First-class concurrency for parallel storylines
-- Extensible verb system—add custom commands without forking
-- Clean separation between story logic and presentation
+Extensibility is inherent to the language. Define new verbs to fit your needs.
 
-## Core Philosophy
+Everything is a *verb*. This uniform structure removes the need for special syntax per feature and makes scripts easier to reason about.
 
-1. **Verbs, not functions.** Every action is a *verb* that the runtime performs. This keeps the language close to natural storytelling: characters *converse*, scenes *show*, music *plays*.
+## Ownership to Story Playback
 
-2. **Stories are isolated.** Variables live in scopes. Contexts run independently. When stories fork, they don't accidentally break each other.
+Compared to options like Ink or Twine, ZOH moves story text back into a "content parameter" instead of the "script body". For example, instead of writing just `The quick brown fox jumps over the lazy dog`, you write `/converse "The quick brown fox jumps over the lazy dog"`.
 
-3. **Presentation is separate.** ZOH doesn't dictate how your game looks. The same script can power a text console, a 2D visual novel, or a 3D cinematic—just swap the verb drivers.
+ZOH inverts the relationship between the story script and the player implementation so it can do more than show text line by line. Instead of requiring developers to add effects or mechanisms around the story, ZOH scripts act as stage directions that drive the player to present everything in the scene.
 
-4. **Extend, don't modify.** Need a custom verb? Register a driver. Need preprocessing? Add a compiler pass. The runtime is built for plugins.
+So while ZOH sacrifices some of the conciseness of Ink or Twine, it lets authors interact with the player implementation more directly in the same language.
+
+## Do this, if you can
+
+The same script can power a text console, a visual novel, or a 3D cinematic. ZOH doesn't care what your game looks like; that's the runtime's job. Write the story once, present it however you want.
+
+One core principle of ZOH is Progressive Enhancement. As an embedded scripting language, ZOH is expected to be implemented by runtimes in various languages, on various platforms, minimalistic or full-fledged.
+
+The idea is that any ZOH script should run in any runtime that implements the core protocol, while runtimes extended with additional verbs can provide richer experiences and represent the script better to the user.
+
+This is because verbs are intentions executed by the runtime. On paper, no verb is required; the actual behavior of any verb is up to the runtime.
+
+In practice, the language itself is built on verbs (including fundamental features like variable management and flow control), so a runtime must implement the core verbs and comply with their behavior definitions to run a ZOH script.
 
 ## At a Glance
 
 ```zoh
-Murder Mystery
-author: Jane Doe;
+The Last Coffee Shop
 ===
 
-@intro
-/converse [By: "Detective"] "The body was found at midnight.";
+@opening
+:: Set the stage
+/show [id: "bg"] [fade: 1.5] "cafe_night.png";
+/play [id: "ambience"] [loops: -1] "rain_and_jazz.ogg";
 
-/choose "What do you do?",
-    "Examine the body", true, "examine",
-    "Question the witness", true, "witness"
-; -> *choice;
+*player_name <- "stranger";
+*trust <- 0;
 
-/if *choice, is: "examine", /jump ?, "examine_body";;
-/if *choice, is: "witness", /jump ?, "question_witness";;
+:: Fork parallel contexts—the world keeps moving while you talk
+====+ @cafe_atmosphere;
+====+ @barista_idle;
 
-@examine_body
-/converse "You notice a strange marking on the victim's hand...";
+/converse [By: "Narrator"] "11:47 PM. The cafe closes at midnight. Rain scribbles on the glass.";
+/converse "A woman in a red coat sits alone by the window, a sealed envelope on the table.";
+
+====> @first_approach;
+
+@first_approach
+/choose/
+    prompt: "The rain picks up outside."
+    true  "Sit across from her"         "sit"
+    true  "Order something first"       "order"
+    true  "Leave—this isn't your story" "leave"
+/; -> *choice;
+
+/switch/ *choice
+    "sit"   /jump ?, "sit_down";
+    "order" /jump ?, "at_counter";
+    "leave" /jump ?, "walk_away";
+/; -> *dest;
+/do *dest;
+
+@at_counter
+/converse [By: "Barista"] "Last call. What'll it be?";
+/prompt "Your order:"; -> *order;
+/converse [By: "Barista"] "Coming right up.";
+/sleep 1.5;
+
+*trust <- $`*trust + 1`;    :: Small gesture of patience
+====> @sit_down;
+
+@sit_down
+/push <stop_idle>, true;    :: Signal the barista to stop her idle loop
+
+/converse [By: "Woman"] "You're not from around here.";
+
+/choose/
+    prompt: "She's studying your face like it belongs to a name she's trying to place."
+    true                "How can you tell?"   "deflect"
+    `*trust > 0`        "Neither are you."    "mirror"
+    true                "Say nothing"         "silence"
+/; -> *response;
+
+/if *response, is: "mirror", /sequence/
+    *trust <- $`*trust + 2`;
+    /converse [By: "Woman"] "...No. I'm not.";
+    /converse "For the first time, she smiles.";
+/;;
+
+/if *response, is: "silence", /sequence/
+    /converse "The silence stretches. Outside, a car glides past with no headlights.";
+    /play [id: "car"] "car_passing.ogg";
+/;;
+
+/push <ending>, *trust;
+====> @closing_time;
+
+@walk_away  
+/converse "Some doors are better left unopened. You leave with the rain.";
+/push <ending>, -1;
+====> @closing_time;
+
+@closing_time
+/pull <ending>; -> *final_trust;
+
+/if `*final_trust < 0`, /sequence/
+    /converse [By: "Narrator"] "The cafe light flickers off behind you. Whatever she needed will wait for someone else.";
+    /stop [fade: 3] "ambience";
+    /exit;
+/;;
+
+/if `*final_trust >= 3`, /sequence/
+    /converse [By: "Woman"] "Wait—";
+    /converse "She slides a folded napkin across the table. A map, a time, and a single word: \"basement\".";
+    /show [fade: 0.5] "napkin_note.png";
+/;;
+
+/converse [By: "Narrator"] "The barista dims the lights. Midnight, and the street goes quiet.";
+/stop [fade: 2] "ambience";
+/sleep 2;
+
+:: ═══════════════════════════════════════════════════════════
+:: PARALLEL CONTEXTS — These run independently alongside the main context above
+:: ═══════════════════════════════════════════════════════════
+
+@cafe_atmosphere
+:: Ambient events that fire periodically
+/loop 999, /sequence/
+    /sleep /rand 5.0, 8.0;;
+    /roll "thunder.ogg", "dishes.ogg", "door_chime.ogg"; -> *sound;
+    /play *sound;
+/;;
+
+@barista_idle
+:: The barista has her own life until you interrupt it
+/while `true`, /sequence/
+    /pull <stop_idle>, timeout: 8; -> *stop;
+    /if *stop, /exit;;
+    /roll 
+        "She wipes down the counter.",
+        "She counts the tips, then looks toward the door.",
+        "She hums along to the music."
+    ; -> *action;
+    /converse [By: "—"] *action;
+/;;
 ```
+
+This example shows:
+- **Parallel contexts** (`====+`) running ambient cafe life alongside the main dialogue
+- **Channel synchronization** (`/push`, `/pull`) to coordinate between contexts  
+- **Conditional choices** with expressions (`` `*trust > 0` ``)
+- **Presentation verbs** (`/show`, `/play`, `/stop`) directing visuals and audio
+- **Block form** (`/verb/ ... /;`) for readable multi-line structures
+- **Randomization** (`/rand`, `/roll`) for dynamic ambient events
+- **Variable state** tracking player decisions across the scene
 
 ---
 
@@ -81,7 +197,7 @@ comments
 /verb;                        :: Return value is not required.
    /verb;                     :: Verbs don't have to start at the beginning of a line
 
-/verb [attr1] [attr2];        :: Spaces between attributes are required
+/verb [attr1] [attr2];        :: Spaces around and between attributes are required
 /verb p1,p2,p3;               :: Spaces between parameters are optional
 /verb;->*return_into_var;     :: Spaces around -> are optional
 
@@ -152,19 +268,16 @@ meta_map: {key1: value1, key2: value2};
 Namespaces are used to group verbs, attributes. Each verb and attribute should be under a namespace. Namespace can be nested. Namespace can be omitted if the verb or attribute name is unique.
 
 ```
-/core.set "var";
 /std.converse "Hello";
 ```
 
 # Variables
 
 Variables are values of a certain type.
-
+	
 Verbs may require variables passed-in to be of certain types. Attributes may require values to be of certain types. 
 
 Variable stroage is located in the runtime or individual context and variables are always accessible to verb drivers, regardless if references are passed in the verb call. Passing references only serves as a "pointer" to the variable.
-
-Variables in storage are either not-yet-typed or typed. When typed, the runtime throws error and aborts `/set` operations if the value to be set is not of the same type.
 
 Variables are stored in either of the 2 scopes, context and story:
 - Context: variables shared through all stories in the current context and removed when the context is destroyed.
@@ -206,7 +319,9 @@ Variable names are case-insensitive, can NOT start with digits and can NOT conta
 - /verb
 	- A verb call is an objectified verb invocation command, holding verb name, attributes, parameters.
 - {map}
-	- A map is a collection of string-variable pairs. Denoted as `{"key": value, *string: value...}`. Accept `"string"` or `*"string"` for keys. In case of a reference, the value is used.
+	- A map is a collection of string-keyed entries. Denoted as `{"key": value, *string: value...}`.
+	- Keys must be strings; using a non-string value as a map index produces a fatal error.
+	- Accept `"string"` or `*string_var` for keys in literals. In case of a reference, the resolved string value is used.
 - \[list\]
 	- A list is a collection of variables. Denoted as `[value1, value2, value3...]`.
 - \<channel\>
@@ -219,14 +334,47 @@ Variable names are case-insensitive, can NOT start with digits and can NOT conta
 	- An expression is a special construct that can be evaluated by `/evalulate` at runtime.
 	- Denoted as `` `expr` ``.
 - *reference
-	- Denoted as `*variable_name`.
-	- A reference value optionally carries an index for collection variables.
+	- Denoted as `*variable_name` or `*variable_name[index1][index2]...` for nested access.
+	- A reference value carries a path of zero or more indexes for nested collection navigation.
+	- Each index navigates into a collection: integers for lists (0-based), strings for map keys.
+	- Path resolution behavior depends on context:
+		- In expressions: fatal if path element doesn't exist (operations can't work with nothing)
+		- In `/get`: returns `?` if path element doesn't exist (query semantic)
+		- In mutations (`/set`, `/drop`, `/capture`, etc.): fatal if intermediate path doesn't exist
 	- Being one of the value types, references are used as pointers to variables in storage, users can not put references into variables with any verb like how one will with literal of other types.
+
+#### Type-to-String Conversion
+
+All values can be converted to strings. This specification ensures consistent cross-language implementations.
+
+| Type | String Representation |
+|------|----------------------|
+| `nothing` | `"?"` |
+| `boolean` | `"true"` or `"false"` (lowercase) |
+| `integer` | Decimal digits with `-` prefix for negative, no leading zeros |
+| `double` | Decimal notation, always includes `.` (e.g., `42.0` not `42`) |
+| `string` | Identity (returns unchanged) |
+| `list` | `"[v1, v2, ...]"` with recursive conversion |
+| `map` | `"{"k1": v1, ...}"` with quoted keys |
+| `channel` | `"<name>"` |
+| `reference` | `"*name"` or `"*name[i]..."` |
+| `expression` | `` "`...`" `` |
+| `verb` | `"/name ...;"` |
+
+**Double formatting**:
+- Always include decimal point: `42.0` not `42` (distinguishes from integer)
+- Minimum precision to uniquely identify value
+- Scientific notation for `|value| >= 1e15` or `|value| < 1e-4`
+- Special values: `"Infinity"`, `"-Infinity"`, `"NaN"`
+
+**Collection formatting**:
+- String values within collections are quoted
+- Map key order is implementation-defined
 
 ## Attributes
 Inspired by C#, attributes are reusable components that can be marked on verb calls.
 
-Attributes are denoted as `[name:value]`, or `[name]` if the value is not required. In the latter case, the value is a `Nothing`. All types are allowed for attribute values. Attribute names are case-insensitive, can not start with digits and can not contain whitespaces or reserved characters, and allows up to one `.` if namespace is used.
+Attributes are denoted as `[name:value]`, or `[name]` if the value is not required. In the latter case, the value is a `nothing`. All types are allowed for attribute values. Attribute names are case-insensitive, can not start with digits and can not contain whitespaces or reserved characters, and allows up to one `.` if namespace is used.
 
 Attributes are ALWAYS OPTIONAL and common parameters shared by indefinite verbs that map to common concepts that could be useful in various scenarios.
 
@@ -247,11 +395,11 @@ Verbs are the foundational building blocks of the language, which are the instru
 
 Verbs calls can contain attributes, named parameters, and unnamed parameters, and are always terminated with a `;`.
 
-Named parameters are denoted as `name:value`, while unnamed parameters are denoted as `value`. Named parameters can appear before or after unnamed parameters, but not in between.
+Named parameters are denoted as `name:value`, while unnamed parameters are denoted as `value`. Named and unnamed parameters can be freely interleaved—there is no required ordering.
 
-Verbs always return a value, even if it's a `Nothing`. This value is kept by the runner context and can be kept into a variable by calling `/capture "variable_name";`.
+Verbs always return a value, even if it's a `nothing`. This value is kept by the runner context and can be kept into a variable by calling `/capture "variable_name";`.
 
-Verbs always output a list of diagnostics or nothing. The last diagnostics returned is kept by the runner context and can be checked by calling `/diagnose;`.
+Verbs always return a list of diagnostics (if any) or `nothing`. The last diagnostics returned is kept by the runner context and can be returned by `/diagnose;`. This applies to `/diagnose` itself, therefore, the last diagnostics can be returned only once before overriden by `/diagnose`.
 
 Verb behaviors are entirely determined by runtime implementation. If a runtime does not have a verb driver registered for a verb, simply nothing would happen and the playback continues. Authors should utilize required verbs metadata if certain verbs are required.
 
@@ -282,64 +430,71 @@ Verbs can be written in two forms:
 :: -> *return_into_var; is syntactic sugar of /capture "return_into_var";
 ```
 
-## Core Verbs
-Core verbs are expected to be implemented by all runtimes, while [standard verbs](./std.md) are expected to play most stories without issues.
+## Standard Diagnostics
+These are diagnostics that maybe returned by any verb.
 
-All core verbs should be under `std.` namespace.
+- Fatal: `invalid_type`: Any supplied parameter is not of valid types.
+- Fatal: `parameter_not_found`: Any required parameter is not provided.
+- Error: `invalid_attribute`: Any supplied attribute is invalid. Should be returned by all verbs when a attribute is found and handled but the value is invalid.
+
+## Core Verbs
+Core verbs are expected to be implemented by all runtimes, while [standard verbs](./std_verbs.md) are expected to play most stories without issues.
 
 ### Core.Set
 
 The verb declares a variable or updates an existing variable.
 
 #### Parameters
-- `var_name`: the name of the variable to set. Accept `"string"` or `*"string"`.
-- `index`: the index of the variable to set. Optional. If the index is `?` or not provided, the variable itself is declared or updated, otherwise, the variable must be a declared list or map. Accept `"string"`, `*"string"`, `integer` or `*integer`.
-- `value`: the value to set. Accept `any`. In case it's a reference, the value of the reference is used. Throws error in case the variable is already typed and the value is not of the same type.
+- `target`: the variable to set. Accept `*reference` or `*reference[path...]`. The reference name identifies the variable; the optional path navigates into nested collections.
+- `value`: the value to set. Accept `any`. In case it's a reference, the value of the reference is used. Results in a fatal error in case the variable is already typed and the value is not of the same type.
+
+#### Diagnostics
+- Fatal: `invalid_index`: The index provided is invalid.
+- Fatal: `invalid_value`: The value provided is not listed in the provided OneOf list.
+- Fatal: `required`: The variable is not assigned and the value is not provided.
+- Fatal: `type_mismatch`: The value type does not match the variable's declared type (via `[typed]` attribute).
 
 #### Returns
-A Nothing.
+A nothing.
 
 #### Attributes
 - **resolve**: Instead of storing the `/verb` or `` `expr` ``, store the value resolved from the `/verb` or `` `expr` `` parameter.
 - **scope** (string: `context`/`story`): the scope to set the variable to. Requires a value of either `context` or `story`. The runtime should default to `story` too if the attribute not specified. Accept `"string"`.
-- **required**: requires the variable to be assigned. Does not requires a value. If the variable is not assigned and the value is not provided, `/set` verb validator should output an fatal error.
+- **required**: requires the variable to be assigned. Does not requires a value. If the variable is not already assigned and the value is not provided, `/set` verb validator should output an fatal error.
 - **typed** (string: `string`/`integer`/`double`/`boolean`/`list`/`map`/`verb`/`channel`): set the type for the variable without needing a value or inferring from value. Accept `"string"`.
-- **OneOf** (`[list]`/`*[list]`): Checks the variable to be one of the values in the list. Accept `*[list]`.
+- **OneOf** (`[list]`/`*[list]`): Checks the variable to be one of the values in the list.
 
 #### Examples
 
 ```
-/set "var_name";                 
-:: Declaration of a variable named "var_name" of type Nothing, and the value is a Nothing
+/set *var_name;
+:: Declaration of a variable named "var_name" of type nothing, and the value is a nothing
 
-/set [typed: "string"] "var_name";                 
-:: Declaration of a variable named "var_name" of type string, and the value is still a Nothing
+/set [typed: "string"] *var_name;
+:: Declaration of a variable named "var_name" of type string, and the value is still a nothing
 
-/set "var_name", *value;         
+/set *var_name, *value;
 :: Declaration of a variable named "var_name" of type of value, and the value is the value
 
-/set "var_name", ?, *value;      :: Equal to the above
+/set [required] *var_name;      :: Declaration with required attribute
 
-/set [required] "var_name";      :: Declaration with required attribute
+/set *list[0], *value;          :: Update list element
+/set *map["key"], *value;       :: Update map entry
+/set *data["users"][0]["name"], "Alice"; :: Nested path assignment
 
-/set *var_var_name *var_value;      
-:: Declaration of a variable of type of var_value, named with the string value of var_var_name, and the value is the value of var_value
-
-/set "var_name", *index, *value; :: Update list or map
-
-/set "var_name", /verb;;         :: set the variable to the verb call
-/set [resolve] "var_name", /verb;; :: set the varialbe to the return value of the verb call
+/set *var_name, /verb;;         :: set the variable to the verb call
+/set [resolve] *var_name, /verb;; :: set the variable to the return value of the verb call
 ```
 
 #### Syntactic Sugar Forms
 ```
-*var_name;                          :: /set "var_name";
-*var_name [required];               :: /set [required] "var_name";
-*var_name <- *value;                :: /set "var_name", *value;
-*var_name[?] <- *value;             :: /set "var_name", ?, *value;
-*var_name [required] <- "string";   :: /set [required] "var_name", "string";
-*map["key"] [required] <- "string"; :: /set [required] "map", "key", "string";
-*list[0] [required] <- "string";    :: /set [required] "list", 0, "string";
+*var_name;                          :: /set *var_name;
+*var_name [required];               :: /set [required] *var_name;
+*var_name <- *value;                :: /set *var_name, *value;
+*var_name [required] <- "string";   :: /set [required] *var_name, "string";
+*map["key"] [required] <- "string"; :: /set [required] *map["key"], "string";
+*list[0] [required] <- "string";    :: /set [required] *list[0], "string";
+*data["users"][0]["name"] <- "Alice"; :: /set *data["users"][0]["name"], "Alice";
 *var_name<-*value;                	:: Spaces around `<-` are optional
 ```
 
@@ -361,46 +516,57 @@ The nature of the language requires user awareness of the difference between `/s
 The verb returns the value of a variable.
 
 #### Parameters
-- `var_name`: the name of the variable to get. Accept `"string"` or `*"string"`.
-- `index`: the index of the variable to get. Optional. Accept `?`, `integer`/`*integer`, `string`/`*string`, or `` `expr` ``/ `` *`expr` ``. Defaults to `?` if not provided. In case of reference, the value is used. In case of `?`, the variable itself is returned. In case of `` `expr` ``, the expression is evaluated and the result is used.
+- `target`: the variable to get. Accept `*reference` or `*reference[path...]`. The reference name identifies the variable; the optional path navigates into nested collections.
 
 #### Returns
-The value of the variable. Or a Nothing if the variable is not found by the index. Returns a Nothing if the variable does not exist.
+The value of the variable. Returns `?` if the variable does not exist or path navigation encounters a missing element.
 
 #### Attributes
-- `required`: outputs an error if returning a Nothing.
+- `required`: outputs an error if returning a nothing.
+
+#### Diagnostics
+- Fatal: `invalid_index`: path navigation failed due to invalid index type.
+- Error: `not_found`: returning `nothing` but the verb is marked `[required]`.
 
 #### Examples
 ```
-/get "var_name";
-/get "var_name", *index;
-/get "var_name", `expr`;
-/get [required] "var_name", *index;
-/get [required] "var_name";
+/get *var_name;
+/get *list[0];
+/get *map["key"];
+/get *data["users"][0]["name"];
+/get [required] *var_name;
 ```
 
 #### Syntactic Sugar Forms
 ```
-<- *var_name;                     :: /get "var_name";
-<- *var_name [attribute];         :: /get "var_name";
-<- *var_name[*index];             :: /get "var_name", *index;
-<- *var_name[`expr`];             :: /get "var_name", `expr`;
+<- *var_name;                     :: /get *var_name;
+<- *var_name [attribute];         :: /get [attribute] *var_name;
+<- *list[*index];                 :: /get *list[*index];
+<- *data["users"][0]["name"];     :: /get *data["users"][0]["name"];
 <-*var_name;                      :: Spaces around `<-` are optional
 ```
 
 ### Core.Drop
 
-A drop verb delete a variable from story or context.
+A drop verb deletes a variable from story or context, or sets a nested element to `?`.
 
 #### Parameters
-- `var_name`: the name of the variable to drop. Accept `"string"` or `*"string"`.
+- `target`: the variable to drop. Accept `*reference` or `*reference[path...]`. For root variables (no path), removes the variable entirely. For nested paths, sets the element to `?`.
+
+#### Attributes
+- **scope** (string: `context`/`story`): the scope to drop the variable from. Requires a value of either `context` or `story`. The runtime should default to `story` if the attribute not specified. Accept `"string"`.
+
+#### Diagnostics
+- Fatal: `invalid_index`: path navigation failed due to invalid index type.
 
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
-drop "var_name";
+/drop *var_name;                  :: Remove variable entirely
+/drop *list[0];                   :: Set list[0] to ?
+/drop *data["users"][0]["name"];  :: Set nested element to ?
 ```
 
 ### Core.Capture
@@ -410,39 +576,100 @@ A capture verb takes the return value of the last verb call in the context and s
 Internally should be implemented with a `/set`.
 
 #### Parameters
-- `var_name`: the name of the variable to set. Accept `"string"` or `*"string"`.
-- `index`: the index of the variable to set. Optional. If the index is `?` or not provided, the variable itself is declared or updated, otherwise, the variable must be a declared list or map. Accept `"string"`, `*"string"`, `integer` or `*integer`.
+- `target`: the variable to capture into. Accept `*reference` or `*reference[path...]`. The reference name identifies the variable; the optional path navigates into nested collections.
+
+#### Diagnostics
+- Fatal: `invalid_index`: path navigation failed due to invalid index type.
 
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
-/capture "var_name";
-/capture "a_list", *index;
-/capture "a_map", *key;
+/capture *var_name;
+/capture *list[*index];
+/capture *data["result"]["value"];
 ```
 
 #### Syntactic Sugar Forms
 ```
 -> *var_name;
--> *a_list[*index];
--> [attribute] *a_map[*key];
+-> *list[*index];
+-> [attribute] *map["key"];
+-> *data["users"][0]["name"];
 ```
 
 ### Core.Diagnose
 
 A diagnose verb returns the last list of diagnostics returned by the last verb call in the context.
 
-If no diagnostics are returned, it returns a Nothing.
+If no diagnostics are returned, it returns a nothing.
 
 #### Returns
-A list of diagnostics or a Nothing.
+A map of the following structure: `{"fatal": ["string"], "error": ["string"], "warning": ["string"], "info": ["string"]}`, or a nothing if no diagnostics are returned. Each type of diagnostics is a list of strings. Each type of diagnostics could be omitted if there are no diagnostics of that type.
 
 #### Examples
 ```
 /diagnose;
 ```
+
+### Core.Try
+
+A try verb executes a verb and downgrades any fatal diagnostics to error level, preventing context termination. The original fatal is converted to an error and available via `/diagnose`.
+
+#### Parameters
+- `verb`: The verb to execute. Accept `/verb` or `*/verb`.
+
+#### Named Parameters
+- `catch`: The verb to execute if `verb` produces any fatal diagnostic (now downgraded to error). Accept `/verb` or `*/verb`.
+
+#### Attributes
+- **suppress**: Suppress diagnostics from `/verb`. The context kept diagnostics will only contain diagnostics from the catch verb.
+
+#### Returns
+- If no fatal diagnostic: the return value of `verb`.
+- If fatal diagnostic downgraded and `catch` provided: the return value of the catch verb.
+- If fatal diagnostic downgraded and no catch provided: a `nothing`.
+
+#### Diagnostics
+The original fatal diagnostics are moved to the `error` list with their codes preserved. For example, if the inner verb returns `{fatal: ["invalid_type: ..."]}`, after `/try` the diagnostics become `{error: ["invalid_type: ..."]}`.
+
+Diagnostics from the `cache` verb (if provided) should be appended. Therefore, if the `catch` verb emit fatal diagnostics, the context still get terminated.
+
+#### Examples
+```
+:: Basic try - downgrades fatal to error, context continues
+/try /risky_verb;;
+
+:: Try with catch handler (runs if fatal occurred)
+/try /risky_verb;, catch: /handle_error;;
+
+:: Block form
+/try/
+    /parse *user_input, "integer";
+    catch: /sequence/
+        /warning "Invalid input, using default";
+        /set "result", 0;
+    /;
+/;
+
+:: Suppress diagnostics after handling
+/try [suppress] /verb;, catch: /log_and_continue;;
+
+:: Check diagnostics after try
+/try /risky_verb;;
+/diagnose; -> *diag;
+/if *diag, /handle *diag;;  :: *diag contains downgraded error if fatal occurred
+```
+
+#### Behavior Notes
+
+1. **Downgrade, not catch**: `/try` converts fatal diagnostics to error level. Since errors don't terminate the context, execution continues normally.
+2. **Errors pass through**: Error, warning, and info diagnostics from the inner verb are NOT modified - only fatals are downgraded.
+3. **Scope**: Only affects diagnostics from the immediate verb execution, not from nested contexts (forks/calls).
+4. **Propagation**: If the catch verb itself produces a fatal diagnostic, that fatal terminates the context normally (not downgraded).
+5. **Return Value**: When a fatal is downgraded without a handler, the return value from the failed verb (if any was produced before the fatal) is discarded and a nothing is returned.
+6. **Diagnostics Preservation**: The downgraded diagnostics are available via `/diagnose` after `/try` completes (unless `[suppress]` is used). Original error codes are preserved.
 
 ### Core.Interpolate
 
@@ -468,6 +695,10 @@ Interpolation should also support:
 #### Parameters
 - `str`: the string to interpolate. Accept `any`. In case of `*reference`, the value of the reference is used. In case of types other than `string`, the parameter is simply formatted to string. `` `expr` `` is not evaluated.
 
+#### Diagnostics
+- Fatal: `invalid_syntax`: Malformed interpolation syntax (unclosed `${`, invalid escape sequence).
+- Fatal: `undefined_var`: A referenced variable in the interpolation does not exist.
+
 #### Returns
 The interpolated string.
 
@@ -492,7 +723,7 @@ $'Hello, ${*name}!';
 An eval verb evaluates a expression ONCE and returns the result.
 
 On top of arithmetic operation, it should support this special syntax:
-- calling `/interpolate` for `$(*var)`. For example: `$("Hello, {*name}!")`.
+- calling `/interpolate` for `$(string)`. For example: `$("Hello, ${*name}!")` or `$(*string_var)`.
 - calling `/count` for `$#(*var)`.
 - calling `/if` for `$?(*var1? *var2 : *var3)` with `var1` as the condition, `var2` as the true case value, and `var3` as the else case value.
 - calling `/any` for `$?(*var1|*var2...|*varN)`.
@@ -502,13 +733,16 @@ On top of arithmetic operation, it should support this special syntax:
 
 Verb calls are not supported.
 
-In case of undefined variables, the expression should throw an error.
-
 #### Aliases
 - `eval`
 
 #### Parameters
 - `expr`: the expression to evaluate. Accept `` `expr` `` or `` *`expr` ``.
+
+#### Diagnostics
+- Fatal: `invalid_syntax`: Malformed expression syntax.
+- Fatal: `invalid_type`: Type error during expression evaluation (e.g., adding string to integer).
+- Fatal: `undefined_var`: Any variable used in the expression is undefined.
 
 #### Returns
 The result of the expression, type depends on the expression.
@@ -549,14 +783,25 @@ Persistence storage is global, concurrent safe and accessible across all runtime
 - `store`: a specific "container" for persistence time scoping. Defaults to `?`, which indicates the verb to use the default global container.
 
 #### Parameters
-- `*var`: the variable to write. Accept references of `integer`, `double`, `boolean`, `string`, `list`, `map`.
+- `*var...`: Variables to write. Accept repeating references of `nothing`, `integer`, `double`, `boolean`, `string`, `list`, `map`.
+
+#### Diagnostics
+- Fatal: `invalid_type`: A value cannot be persisted (e.g., verb, channel, expression).
+- Fatal: `runtime_error`: Persistence layer failure (I/O error, storage unavailable).
 
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
-/write *var;
+/write *score;                        :: Single variable
+/write *score, *name, *inventory;     :: Multiple variables
+/write store:"save1", *score, *name;  :: With store name
+/write/
+    *score
+    *name
+    *inventory
+/;                                    :: Block form
 ```
 
 ### Store.Read
@@ -573,18 +818,26 @@ Persistence storage is global, concurrent safe and accessible across all runtime
 - `default`: the default value to return if the variable is not found. Accept `integer`, `double`, `boolean`, `string`, `list`, `map` or `?`. Defaults to `?`.
 
 #### Parameters
-- `*var`: the variable to read. Accept references. Throws error in case the variable is already typed and the value is not of the same type.
+- `*var...`: Variables to read. Accept repeating references.
 
 #### Attributes
 - `required`: Output error if the variable is not found.
+- `scope` (string: `context`/`story`): the scope to set the variable to. Requires a value of either `context` or `story`. The runtime should default to `story` if the attribute not specified. Accept `"string"`.
+
+#### Diagnostics
+- Info: `not_found`: A variable key does not exist in storage (returns default value).
+- Fatal: `runtime_error`: Persistence layer failure (I/O error, storage unavailable).
 
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
-/read *var;
-/read [default: 0] *var;
+/read *score;                         :: Single variable
+/read *score, *name, *inventory;      :: Multiple variables
+/read default:0, *score, *level;      :: With default value
+/read store:"save1", *score;          :: From named store
+/read [scope:"context"] *score;       :: Read to context scope
 ```
 
 ### Store.Erase
@@ -597,8 +850,12 @@ An erase verb erases a variable from persistent storage.
 #### Parameters
 - `*var`: the variable to erase. Accept references.
 
+#### Diagnostics
+- Info: `not_found`: The variable key does not exist in storage.
+- Fatal: `runtime_error`: Persistence layer failure (I/O error, storage unavailable).
+
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
@@ -612,8 +869,11 @@ Purges all variables from persistent storage.
 #### Parameters
 - `store`: a specific "container" for persistence time scoping. Defaults to `?`, which indicates the verb to use the default container.
 
+#### Diagnostics
+- Fatal: `runtime_error`: Persistence layer failure (I/O error, storage unavailable).
+
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
@@ -642,16 +902,21 @@ String. `string`/`integer`/`double`/`boolean`/`list`/`map`/`verb`/`channel`/`exp
 A count verb returns the size of a variable.
 
 #### Parameters
-- `var`: the variable to count. Accept `"string"`/`*"string"`, `[list]`/`*[list]`, `{map}`/`*{map}`, or `<channel>`/`*<channel>`. In case of reference, the value is used. In case of `list` or `map`, the size of the list or map is returned. In case of `string`, the length of the string is returned. Throws error in case of other types. In case of `<channel>`/`*<channel>`, the number of elements in the channel is returned.
+- `target`: the variable to count. Accept `*reference[path...]`. The reference navigates to the value to count. The value must be `string`, `list`, `map`, `channel`, or `nothing`.
+
+#### Diagnostics
+- Fatal: `invalid_type`: the value to count is not of type `string`/`list`/`map`/`channel`/`nothing`.
+- Fatal: `invalid_index`: path navigation failed.
 
 #### Returns
-The integer size of the variable.
+The integer size of the variable. For `nothing`, returns 0.
 
 #### Examples
 ```
 /count *list; -> *size;
 /count *map; -> *size;
-/count *str; -> *length;
+/count *map["key"]; -> *size;
+/count *data["users"][0]["items"]; -> *size;
 ```
 
 ### Core.Do
@@ -659,6 +924,9 @@ A do verb executes a verb referenced by the parameter, or a verb returned by the
 
 #### Parameters
 - `verb`: the verb to execute. Accept `*/verb` or verb-returning `/verb`.
+
+#### Diagnostics
+- Fatal: `invalid_type`: The parameter is not a verb value.
 
 #### Returns
 The return value of the verb executed.
@@ -669,7 +937,7 @@ The return value of the verb executed.
 /do /verb_returning;; :: This execute the verb returned by /verb_returning
 ```
 
-### Sequence
+### Core.Sequence
 
 A sequence verb executes verbs in order.
 
@@ -679,6 +947,9 @@ A sequence verb executes verbs in order.
 #### Parameters
 - Repeating:
 	- `/verb`: The verbs to execute. Accept `/verb`, `*/verb` or `*[list]` of verbs. In case of `*[list]`, the list is iterated over and each element is executed if it is a verb.
+
+#### Diagnostics
+- Fatal: `invalid_type`: The breakif condition is not a boolean or nothing after evaluation.
 
 #### Returns
 The return value of the last verb executed.
@@ -718,8 +989,11 @@ A if verb conditionally executes a verb.
 - `subject`: Accept `any`. In case of reference, the value is used. In case of `` `expr` ``, it is evaluated. In case of `/verb`, the returned value is used.
 - `verb`: the verb to execute if the condition is true. Accept `/verb` or `*/verb`.
 
+#### Diagnostics
+- Fatal: `invalid_type`: The evaluated condition is not a boolean or nothing.
+
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
@@ -742,11 +1016,14 @@ A loop verb repeatedly executes a verb a specified number of times.
 - `breakif`: Optional. The condition to break the loop or start next iteration. Accept `*boolean`, `/verb`/`*verb` or `` `expr` ``/`` *`expr` ``. In case of reference, the , the value is used. In case of `` `expr` ``, it is evaluated. In case of `/verb`, the returned value is used.
 
 #### Parameters
-- `times`: The number of times to loop. Accept `int` or `*int`, in case of the latter, the runtime copies the value. In case of dynamic loop, use [/while](#while) instead.
+- `times`: The number of times to loop. Accept `int` or `*int`, in case of the latter, the runtime copies the value. In case of `-1`, the loop runs indefinitely. For dynamic loops, use [/while](#while) instead.
 - `/verb`: The verb to execute.
 
+#### Diagnostics
+- Fatal: `invalid_type`: The count parameter is not an integer.
+
 #### Returns
-A Nothing.
+A nothing.
 
 ```
 /loop *times, /verb;;
@@ -764,8 +1041,11 @@ A while verb repeats a verb as long as the condition is met.
 - `subject`: Accept `any`. In case of reference, the value is used. In case of `` `expr` ``, it is evaluated. In case of `/verb`, the returned value is used.
 - `verb`: the verb to execute if the condition is true. Accept `/verb` or `*/verb`.
 
+#### Diagnostics
+- Fatal: `invalid_type`: The evaluated condition is not a boolean or nothing.
+
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
@@ -783,11 +1063,14 @@ A foreach verb iterate over a list or map and set each element to the provided r
 
 #### Parameters
 - `subject`: The list to iterate over. Accept `[list]`,`*[list]`, `{map}` or `*{map}`.
-- `it`: The reference to set each element to. Accept references. In case the subject is a map, it's set to a map with exactly one key-value pair, where the key is the map key and the value is the map value. If the reference is already assigned, it will be dropped first to avoid type conflicts.
+- `it`: The reference to set each element to. Accept references. In case the subject is a map, it's set to a map with exactly one key-value pair, where the key is the map key and the value is the map value. If the variable is already assigned in the **story scope**, it will be dropped from the **story scope** first to avoid type conflicts.
 - `/verb`: The verb to execute for each element. Accept `/verb`. 
 
+#### Diagnostics
+- Fatal: `invalid_type`: The subject is not a list or map.
+
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
@@ -805,8 +1088,11 @@ A switch verb conditionally returns the value of the first matching condition ca
     - `value`: the value to return if the case matches. Accept `any`. In case of reference, it takes the value of the reference.
 - `default`: Optional. The value to return if no case matches. Accept `any`. In case of reference, it takes the value of the reference.
 
+#### Diagnostics
+- Fatal: `invalid_type`: Subject or case expression/verb evaluation resulted in an error.
+
 #### Returns
-The value of the case, or the default value if no case matches, or Nothing if no default is provided.
+The value of the case, or the default value if no case matches, or a nothing if no default is provided.
 
 #### Examples
 ```
@@ -840,6 +1126,9 @@ A has verb checks if a variable is in a list or is it a key in a map.
 - `collection`: The collection to check. Accept `[list]`/`*[list]` or `{map}`/`*{map}`.
 - `subject`: The variable to check. Accept `any`. In case of reference, the value is used. If the collection is a list, the subject is checked for equality with each element. If the collection is a map, the subject is checked for equality with each key.
 
+#### Diagnostics
+- Fatal: `invalid_type`: The collection is not a list or map.
+
 #### Returns
 A boolean.
 
@@ -851,7 +1140,7 @@ A boolean.
 
 ### Core.Any
 
-An any verb returns `true` if a `/get` against the provided variable and index does not return a Nothing.
+An any verb returns `true` if a `/get` against the provided variable and index does not return a nothing.
 
 #### Parameters
 - `var`: The variable to check. Accept `any`. If it is a reference, the value is used.
@@ -872,10 +1161,10 @@ A First verb returns the first value that `/any` returns `true` for.
 
 #### Parameters
 - Repeating:
-    - `case`: the case to check. Accept `any` EXCEPT `Nothing`. In case of reference, the value will be used. In case of `/verb`, it takes the return value of the verb. In case of `` `expr` ``, it evaluates the expression.
+    - `case`: the case to check. Accept `any` EXCEPT `nothing`. In case of reference, the value will be used. In case of `/verb`, it takes the return value of the verb. In case of `` `expr` ``, it evaluates the expression.
 
 #### Returns
-The first value that `/any` returns `true` for. If no case matches, returns a `Nothing`.
+The first value that `/any` returns `true` for. If no case matches, returns a `nothing`.
 
 #### Examples
 ```
@@ -887,16 +1176,19 @@ A jump verb instruct the context to jump to a [label](#label) in a story.
 
 In case of jumping to other stories, story-scoped variables are dropped while context-scoped variables are preserved. In order to *transfer* story-scoped variables, use the `var` parameters.
 
-Throws fatal if the story or label does not exist.
-
 #### Parameters
 - `story`: the story to jump to. Accept `"string"`/`*"string"`, or `?`.
 - `label`: the label to jump to. Accept `"string"`/`*"string"`.
 - Repeating:
     - `var`: references to story-scoped variables to *transfer*. Accept references. The name of the references are used by the `/set` operation.
 
+#### Diagnostics
+- Fatal: `invalid_type`: Story or label parameter is not a string (or nothing for story).
+- Fatal: `invalid_story`: The story to jump to does not exist.
+- Fatal: `invalid_label`: The label to jump to does not exist.
+
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
@@ -935,19 +1227,22 @@ A fork is similar to jump but starts a new context to execute from the destinati
 
 To `/set` variables in the newly forked context, use the `var` parameters.
 
-Throws fatal if the story or label does not exist.
-
 #### Parameters
 - `story`: the story to jump to. Accept `"string"`/`*"string"`, or `?`.
 - `label`: the label to jump to. Accept `"string"`/`*"string"`.
 - Repeating:
     - `var`: references to variables that will be used to `/set` in the forked context before execution. Scope of the variables are preserved. The name of the references are used by the `/set` operation.
 
+#### Diagnostics
+- Fatal: `invalid_type`: Story or label parameter is not a string (or nothing for story).
+- Fatal: `invalid_story`: The story to jump to does not exist.
+- Fatal: `invalid_label`: The label to jump to does not exist.
+
 #### Attributes
 - `clone`: if the forked context should be a clone of the current context. A cloned context have all the variables and flags of the current context.
 
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
@@ -984,13 +1279,16 @@ A call verb is similar to fork but it blocks the current context until the forke
 
 The last return value in the forked context before termination is returned by the call verb.
 
-Throws fatal if the story or label does not exist.
-
 #### Parameters
 - `story`: the story to jump to. Accept `"string"`/`*"string"`, or `?`.
 - `label`: the label to jump to. Accept `"string"`/`*"string"`.
 - Repeating:
     - `var`: references to variables that will be used to `/set` in the forked context before execution. Accept references. Scope of the variables are preserved. When the call is marked with `inline` attribute, the context will use the values in the forked context to `/set` in the current context after the fork is terminated. If the forked context terminates with an error, the driver should forfeit the `/set` operation.
+
+#### Diagnostics
+- Fatal: `invalid_type`: Story or label parameter is not a string (or nothing for story).
+- Fatal: `invalid_story`: The story to jump to does not exist.
+- Fatal: `invalid_label`: The label to jump to does not exist.
 
 #### Attributes
 - `inline`: if the context should copy the value of the specified `var`s in the forked context back when it's terminated.
@@ -1041,7 +1339,7 @@ Context flags are copied to forks.
 - `value`: the value of the flag. Accept `any`. In case of reference, it takes the value of the reference.
 
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
@@ -1059,13 +1357,14 @@ A Nothing.
 A sleep verb simply blocks the context execution for a specified amount of seconds.
 
 #### Parameters
-- `seconds`: The number of seconds to sleep. Accept `double` or `*double`.
+- `seconds`: The number of seconds to sleep. Accept `double`/`*double`, double-returning `/verb`/`*verb` or `` `expr` ``/`` *`expr` ``. In case of reference, the value is used. In case of `` `expr` ``, it is evaluated. In case of `/verb`, the returned value is used.
 
 #### Returns
-A Nothing.
+A nothing.
 
 ```
 /sleep 0.1;
+/sleep /rand 0.1, 1;
 ```
 
 ### Core.Wait
@@ -1081,7 +1380,7 @@ A runtime may get external or internal messages that propagate to all contexts.
 - `name`: The name of the message to wait for. Accept `"string"` or `*"string"`.
 
 #### Returns
-The message received. Could be `integer`, `double`, `boolean`, `string`, `list`, `map`. If the timeout is reached, returns Nothing.
+The message received. Could be `integer`, `double`, `boolean`, `string`, `list`, `map`. If the timeout is reached, returns a nothing.
 
 #### Examples
 ```
@@ -1096,7 +1395,7 @@ A signal verb broadcasts a message to all contexts.
 - `msg`: The message to send. Accept `integer`, `double`, `boolean`, `string`, `list`, `map`.
 
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
@@ -1112,7 +1411,7 @@ A push verb pushes a variable to a channel. Creates a new channel if it does not
 - `var`: The variable to push. Accept `any`. If it is a reference, the runtime takes the value.
 
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
@@ -1124,8 +1423,6 @@ A Nothing.
 
 A pull verb takes the first variable from a channel, or wait until a variable is available.
 
-Throws an error if the channel does not exist or is closed.
-
 #### Named Parameters
 - `timeout`: The timeout in seconds. Accept `double` or `*double`. Optional. Default to `?`.
 
@@ -1135,6 +1432,11 @@ Throws an error if the channel does not exist or is closed.
 #### Returns
 The variable pulled from the channel.
 
+#### Diagnostics
+- Error: `not_found`: The channel does not exist.
+- Error: `closed`: The channel is closed.
+- Info: `timeout`: The timeout was reached.
+
 #### Examples
 ```
 /pull *channel;
@@ -1143,13 +1445,17 @@ The variable pulled from the channel.
 
 ### Channel.Close
 
-A close verb closes a channel. Throws an error if the channel does not exist or is already closed.
+A close verb closes a channel.
 
 #### Parameters
 - `channel`: The channel to close. Accept `<channel>` or `*<channel>`.
 
+#### Diagnostics
+- Error: `not_found`: The channel does not exist.
+- Error: `closed`: The channel is already closed.
+
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
@@ -1161,11 +1467,13 @@ A Nothing.
 
 An append verb appends a value to a list, or a key-value pair to a map.
 
-Throws an error if the collection in case of key conflict for maps.
-
 #### Parameters
 - `collection`: The collection to append to. Accept `*[list]` or `*{map}`.
 - `var`: The value to add. Accept any type. If it is a reference, the runtime takes the value. For maps, the value should be a key-value pair.
+
+#### Diagnostics
+- Fatal: `invalid_type`: The collection is not a list or map.
+- Error: `key_conflict`: The key already exists in the map.
 
 #### Returns
 The size of the list after the addition. Integer.
@@ -1186,6 +1494,9 @@ No effect if the index is out of bounds or the key does not exist.
 - `collection`: Accept `*[list]` or `*{map}`.
 - `index`: The index to remove. Accept `integer`/`*integer` for list or `"string"`/`*"string"` for map. Accept negative index to remove from the end.
 
+#### Diagnostics
+- Fatal: `invalid_type`: The collection is not a list or map.
+
 #### Returns
 The size of the list or map after the removal. Integer.
 
@@ -1201,11 +1512,15 @@ An insert verb inserts a value into a list.
 
 #### Parameters
 - `list`: Accept `*[list]`.
-- `index`: The index to insert. Accept `integer`/`*integer`. Accept negative index to insert from the end. Throws an error if the index is out of bounds.
+- `index`: The index to insert. Accept `integer`/`*integer`. Accept negative index to insert from the end.
 - `value`: The value to insert. Accept any type. If it is a reference, the runtime takes the value. 
 
+#### Diagnostics
+- Fatal: `invalid_type`: The collection is not a list.
+- Error: `invalid_index`: The index is out of bounds.
+
 #### Returns
-The size of the list after the insertion. Integer.
+The size of the list after the insertion. Integer. Defaults to 0.
 
 #### Examples
 ```
@@ -1219,8 +1534,11 @@ A clear verb clears a list or map.
 #### Parameters
 - `collection`: Accept `*[list]` or `*{map}`.
 
+#### Diagnostics
+- Fatal: `invalid_type`: The collection is not a list or map.
+
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
@@ -1233,14 +1551,15 @@ A Nothing.
 An exit verb stop the context from continuing the current story.
 
 #### Parameters
-None.
+A `any` value that will be returned. Useful in context management.
 
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
 /exit;
+/exit 1;
 ```
 
 ### Core.Increase
@@ -1248,9 +1567,12 @@ A Nothing.
 An increase verb increases a variable by a value.
 
 #### Parameters
-- `var`: The variable to increase. Accept `*integer` or `*double*`
-- `index`: the index of the variable to set. Optional. If the index is `?` or not provided, the variable itself is declared or updated, otherwise, the variable must be a declared list or map. Accept `"string"`, `*"string"`, `integer` or `*integer`.
-- `value`: The value to increase by. Accept `integer`/`*integer`, `double`/`*double`, `/verb`/`*verb` or `` `expr` ``/`` *`expr` ``. In case of reference, the value is used. In case of `/verb`, the returned value is used. In case of `` `expr` ``, it's evaluated. Optional defaults to `1` or `1.0`.
+- `target`: The variable to increase. Accept `*reference[path...]` pointing to an `integer` or `double`.
+- `value`: The value to increase by. Accept `integer`/`*integer`, `double`/`*double`, `/verb`/`*verb` or `` `expr` ``/`` *`expr` ``. In case of reference, the value is used. In case of `/verb`, the returned value is used. In case of `` `expr` ``, it's evaluated. Optional, defaults to `1` or `1.0`.
+
+#### Diagnostics
+- Fatal: `invalid_type`: The target value is not numeric (integer or double).
+- Fatal: `invalid_index`: Path navigation failed.
 
 #### Returns
 The value of the variable after the increase. Integer or double.
@@ -1260,9 +1582,9 @@ The value of the variable after the increase. Integer or double.
 /increase *var;
 /increase *var, *value;
 /increase *var, `expr`;
-/increase *var, /verb;
-/increase *list, 0, *value;
-/increase *map, "key", *value;
+/increase *list[0];
+/increase *map["key"], 5;
+/increase *data["stats"]["score"], 10;
 ```
 
 ### Core.Decrease
@@ -1270,9 +1592,12 @@ The value of the variable after the increase. Integer or double.
 A decrease verb decreases a variable by a value.
 
 #### Parameters
-- `var`: The variable to decrease. Accept `*integer` or `*double*`
-- `index`: the index of the variable to set. Optional. If the index is `?` or not provided, the variable itself is declared or updated, otherwise, the variable must be a declared list or map. Accept `"string"`, `*"string"`, `integer` or `*integer`.
+- `target`: The variable to decrease. Accept `*reference[path...]` pointing to an `integer` or `double`.
 - `value`: The value to decrease by. Accept `integer`/`*integer`, `double`/`*double`, `/verb`/`*verb` or `` `expr` ``/`` *`expr` ``. In case of reference, the value is used. In case of `/verb`, the returned value is used. In case of `` `expr` ``, it's evaluated. Optional, defaults to `1` or `1.0`.
+
+#### Diagnostics
+- Fatal: `invalid_type`: The target value is not numeric (integer or double).
+- Fatal: `invalid_index`: Path navigation failed.
 
 #### Returns
 The value of the variable after the decrease. Integer or double.
@@ -1282,9 +1607,9 @@ The value of the variable after the decrease. Integer or double.
 /decrease *var;
 /decrease *var, *value;
 /decrease *var, `expr`;
-/decrease *var, /verb;
-/decrease *list, 0, *value;
-/decrease *map, "key", *value;
+/decrease *list[0];
+/decrease *map["key"], 5;
+/decrease *data["stats"]["score"], 10;
 ```
 
 ### Debug Verbs
@@ -1295,7 +1620,7 @@ Debug verbs make the runtime emit a diagnostic message.
 - `message`: The message to emit. Accept `"string"`, `*"string"`, `` `expr` ``, or `` *`expr` ``. In case of reference, the value is used. In case of `` `expr` ``, the expression is evaluated.
 
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
@@ -1314,6 +1639,9 @@ A roll verb returns a random value.
 - Repeating:
 	- `value`: The value to return. Accept `any`. In case the value is a reference, the runtime takes the value.
 
+#### Diagnostics
+- Fatal: `parameter_not_found`: No options provided.
+
 #### Returns
 Random one from the values.
 
@@ -1330,6 +1658,11 @@ A Wroll verb returns one of the values randomly, with weights.
 - Repeating:
 	- `value`: The value to return. Accept any type. In case the value is a reference, the runtime takes the value.
 	- `weight`: The weight of the value. Accept `integer` or `*integer`.
+
+#### Diagnostics
+- Fatal: `parameter_not_found`: No options provided.
+- Fatal: `invalid_type`: A weight is not a number.
+- Fatal: `invalid_value`: A weight is negative.
 
 #### Returns
 Random one from the values.
@@ -1354,6 +1687,10 @@ A rand verb returns a random value between min and max.
 - `min`: The minimum value. Accept `integer`/`*integer` or `double`/`*double`.
 - `max`: The maximum value. Accept `integer`/`*integer` or `double`/`*double`.
 
+#### Diagnostics
+- Fatal: `invalid_type`: Min or max is not a number.
+- Fatal: `invalid_value`: Min is greater than max.
+
 #### Returns
 A random value between min and max. Depends on the type of min and max.
 
@@ -1367,14 +1704,15 @@ A random value between min and max. Depends on the type of min and max.
 
 A parse verb returns a value parsed from a string.
 
-Throws an error if the value cannot be parsed into the specified type or the type can not be inferred.
-
 #### Parameters
 - `value`: The value to parse. Accept `string`/`*string`.
 - `type`: The type to parse to. Optional. Accept `"integer"`, `"double"`, `"boolean"`, `"list"`, `"map"`.
 
+#### Diagnostics
+- Fatal: `invalid_type`: The value cannot be parsed into the specified type, or the type can not be inferred.
+
 #### Returns
-The parsed value. Defaults to a Nothing.
+The parsed value. Defaults to a nothing.
 
 #### Examples
 ```
@@ -1396,10 +1734,13 @@ Deferred verbs are executed in LIFO order.
 - `verb`: The verb to defer. Accept `verb`/`*verb`.
 
 #### Attributes
-- **scope**: the scope of the defer. Accept `"string"` or `*"string"`. Valid values are `context` or `story`. 
+- **scope**: the scope of the defer. Accept `"string"` or `*"string"`. Valid values are `context` or `story`.
+
+#### Diagnostics
+- Fatal: `invalid_type`: The parameter is not a verb value.
 
 #### Returns
-A Nothing.
+A nothing.
 
 #### Examples
 ```
@@ -1450,6 +1791,7 @@ Embedding preprocessors should run before macro expansion.
 
 #expand MACRO_NAME;
 #expand MACRO_NAME p_name1:p_value1, p_name2:p_value2...;
+#expand MACRO_NAME |#p_name1|p_value1#| |#p_name2|p_value2#|;
 
 #macro SYSTEM_OUTPUT placeholder;
 /converse [By: *System] |#placeholder#|
@@ -1474,7 +1816,7 @@ Duplicate labels are not allowed and the runtime should emit a compile error.
 ### Examples
 ```
 @label
-/verb; :: the label points to this statement.
+/verb;
 ```
 # Runtime Design
 
@@ -1537,3 +1879,7 @@ Handlers should be stateless and concurrent safe. State should only exists in ru
 
 ## Asset Management
 Asset paths should be abstracted away and assets should be identified by "address". Addresses can be file paths but not limited to.
+
+## Channel Management
+
+Noted that closing a channel should instantly notify all pullers. No puller should be mistakenly pull from a new channel with the same name.

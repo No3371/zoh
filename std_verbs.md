@@ -2,7 +2,7 @@
 
 Standard verbs are expected to play most stories without issues.
 
-## Converse
+## Std.Converse
 
 A converse verb indicates the runtime to present a text at presentation layer.
 
@@ -10,13 +10,13 @@ When multiple contents are provided, the runtime should represent them sequentia
 
 ### Parameters
 - Repeating of the following:
-    - `content`: content to present. Accept `any`. In case of references, the value is used. In case of `` `expr` ``, the expression is evaluated. In case of `"string"`, if it contains any `*`, it performs `/interpolate` once.
+    - `content`: content to present. Accept `"string"`/`*"string"` or `` `expr` ``/`` *`expr` ``. In case of references, the value is used. In case of `` `expr` ``, the expression is evaluated. In case of `"string"`, it performs `/interpolate` once.
 
 ### Returns
-A Nothing.
+A nothing.
 
 ### Attributes
-- **Append**: specify if the content should be appended to the existing content. Accept `boolean` or `*boolean`. Defaults to `false`.
+- **Append**: specify the content should be appended to existing presentation.
 - **By**: specify the speaker. Accept `string` or `*string`.
 - **Wait**: specify if the playback should block until the user responds. Accept `boolean` or `*boolean`. Defaults to the value of flag `#interactive`.
 - **Portrait**: specify an avatar image for the speaker. Accept `string` or `*string`.
@@ -37,7 +37,7 @@ A Nothing.
 ;
 ```
 
-## Choose
+## Std.Choose
 
 A choose verb indicates the runtime to present a choice interaction.
 
@@ -47,7 +47,7 @@ A choose verb indicates the runtime to present a choice interaction.
 ### Parameters
 - Repeating of the following:
     - `visible`: specify if the choice is visible. Accept `boolean`, boolean-returning `/verb`, boolean-evaluated `` `expr` ``, or references to these types.  Default to `true`.
-    - `text`: the choice text. Accept `any`. In case of references, the value is used. In case of `` `expr` ``, the expression is evaluated. In case of `"string"`, it performs `/interpolate` once.
+    - `text`: the choice text. Accept `"string"`/`*"string"` or `` `expr` ``/`` *`expr` ``. In case of references, the value is used. In case of `` `expr` ``, the expression is evaluated. In case of `"string"`, it performs `/interpolate` once.
     - `value`: the value to return if selected. Accept `any`.
 
 ### Returns
@@ -69,7 +69,7 @@ The value of the selected choice.
 ;
 ```
 
-## ChooseFrom
+## Std.ChooseFrom
 
 A chooseFrom verb indicates the runtime to present a choice interaction from a list.
 
@@ -97,7 +97,7 @@ The value of the selected choice.
 /chooseFrom *choices, prompt: "prompt";
 ```
 
-## Prompt
+## Std.Prompt
 
 A prompt verb indicates the runtime to present a text input.
 
@@ -115,7 +115,7 @@ The string value of the input.
 /prompt "What is your name?";
 ```
 
-## Show
+## Std.Show
 
 A show verb indicates the runtime to present a visual media resource at presentation layer.
 
@@ -126,18 +126,18 @@ A show verb indicates the runtime to present a visual media resource at presenta
 The id of the presentation.
 
 ### Attributes
-- **id** (string): the id of the presentation. Defaults to the resource path.
-- **rw** (double): relative width to the viewport.
-- **rh** (double): relative height to the viewport.
-- **w** (double): absolute width.
-- **h** (double): absolute height.
-- **anchor** (string): the anchor point ("center", "top", "bottom", "left", "right", "top-left", "top-right", "bottom-left", "bottom-right").
-- **x** (double): anchor x position (relative to parent/screen).
-- **y** (double): anchor y position (relative to parent/screen).
-- **z** (double): z-index.
-- **fade**: the fade duration in seconds. Defaults to 0.0.
-- **opacity**: the opacity. Defaults to 1.0.
-- **easing**: the easing function. Defaults to "linear".
+- **Id** (string): the id of the presentation. Defaults to the resource path.
+- **RW** (double): relative width to the viewport.
+- **RH** (double): relative height to the viewport.
+- **Width** (double): absolute width.
+- **Height** (double): absolute height.
+- **Anchor** (string): the anchor point ("center", "top", "bottom", "left", "right", "top-left", "top-right", "bottom-left", "bottom-right").
+- **PosX** (double): anchor x position (relative to parent/screen).
+- **PosY** (double): anchor y position (relative to parent/screen).
+- **PosZ** (double): z-index.
+- **Fade**: the fade duration in seconds. Defaults to 0.0.
+- **Opacity**: the opacity. Defaults to 1.0.
+- **Easing**: the easing function. Defaults to "linear".
 
 ### Examples
 ```
@@ -146,7 +146,7 @@ The id of the presentation.
 /show "image.png" [anchor: "center", x: 0.5, y: 0.5];
 ```
 
-## Hide
+## Std.Hide
 
 A hide verb indicates the runtime to hide a media resource at presentation layer.
 
@@ -154,18 +154,18 @@ A hide verb indicates the runtime to hide a media resource at presentation layer
 - `id`: the id of the presentation to hide. Accept `string` or `*string`.
 
 ### Returns
-A Nothing.
+A nothing.
 
 ### Attributes
-- **fade**: the fade duration in seconds. Defaults to 0.0.
-- **easing**: the easing function. Defaults to "linear".
+- **Fade**: the fade duration in seconds. Defaults to 0.0.
+- **Easing**: the easing function. Defaults to "linear".
 
 ### Examples
 ```
 /hide "image.png";
 ```
 
-## Focus
+## Std.Focus
 
 A focus verb indicates the runtime to help the user focus on something at presentation layer, if applicable.
 
@@ -173,14 +173,14 @@ A focus verb indicates the runtime to help the user focus on something at presen
 - `target`: the target to focus on. Accept `string` or `*string`.
 
 ### Returns
-A Nothing.
+A nothing.
 
 ### Examples
 ```
 /focus "npc";
 ```
 
-## Unfocus
+## Std.Unfocus
 
 An unfocus verb indicates the runtime to help the user unfocus from something at presentation layer, if applicable.
 
@@ -188,103 +188,123 @@ An unfocus verb indicates the runtime to help the user unfocus from something at
 None.
 
 ### Returns
-A Nothing.
+A nothing.
 
 ### Examples
 ```
 /unfocus;
 ```
 
-## Play
+## Std.Play
 
-A Play verb indicates the runtime to play a sound at presentation layer.
+A Play verb indicates the runtime to play something playable. Should be compatible with Show and Hide, as those controls visiblity, not playback.
 
 ### Parameters
-- `resource`: the audio resource to play. Accept `string` or `*string`.
+- `resource`: the resource to play. Accept `string` or `*string`.
 
 ### Returns
 The id of the playback.
 
 ### Attributes
-- **Id** (string): specify the audio id. Defaults to the resource path.
+- **Id** (string): specify the playback id. Defaults to the resource path. Cut and replace existing playback with the same id.
 - **Volume** (double): specify the volume. Defaults to 1.
 - **Loops** (integer): specify the number of times to loop. Defaults to 1. -1 means infinite.
-- **AudioChannel** (string): specify the audio channel. The runtime should create or use anonymous channels to play audios that never conflict with each other.
-- **fade**: the fade duration in seconds. Defaults to 0.0.
-- **easing**: the easing function. Defaults to "linear".
+- **Easing**: the easing function. Defaults to "linear".
+- Attributes from Std.Show, if applicable.
 
 ### Examples
 ```
-/Play "sound.mp3";
+/play "sound.mp3";
 ```
 
-## Stop
+### Std.PlayOne
 
-A Stop verb indicates the runtime to stop a sound at presentation layer.
+A PlayOne verb indicates the runtime to play something playable without keeping track of it.
 
 ### Parameters
-- `id`: the audio id to stop. Accept `string` or `*string`.
+- `resource`: the resource to play. Accept `string` or `*string`.
+
+### Returns
+The id of the playback.
 
 ### Attributes
-- **fade**: the fade duration in seconds. Defaults to 0.0.
-- **easing**: the easing function. Defaults to "linear".
-
-### Returns
-A Nothing.
-
-### Examples
-```
-/Stop [AudioChannel: "channel_name"]; :: Stops the channel
-/Stop "sound.mp3"; :: Stops the specific sound instance
-/Stop; :: Stops all sounds
-```
-
-## Pause
-
-A PauseAudio verb indicates the runtime to pause a sound at presentation layer.
-
-### Parameters
-- `id`: the audio id to pause. Accept `string` or `*string`.
-
-### Returns
-A Nothing.
+- **Volume** (double): specify the volume. Defaults to 1.
+- **Loops** (integer): specify the number of times to loop. Defaults to 1. -1 means infinite.
+- **Easing**: the easing function. Defaults to "linear".
+- Attributes from Std.Show, if applicable.
 
 ### Examples
 ```
-/PauseAudio "sound.mp3";
+/playOne "sound.mp3";
 ```
 
-## ResumeAudio
+## Std.Stop
 
-A ResumeAudio verb indicates the runtime to resume a sound at presentation layer.
+A Stop verb indicates the runtime to stop something playable.
 
 ### Parameters
-- `id`: the audio id to resume. Accept `string` or `*string`.
+- `id`: the playback id to stop. Accept `string` or `*string`.
+
+### Attributes
+- **Fade**: the fade duration in seconds. Defaults to 0.0.
+- **Easing**: the easing function. Defaults to "linear".
 
 ### Returns
-A Nothing.
+A nothing.
 
 ### Examples
 ```
-/ResumeAudio "sound.mp3";
+/stop [AudioChannel: "channel_name"]; :: Stops the channel
+/stop "sound.mp3"; :: Stops the specific sound instance
+/stop; :: Stops all sounds
 ```
 
-## SetAudioChannelVolume
+## Std.Pause
 
-A SetAudioChannelVolume verb indicates the runtime to set the volume of the audio channel.
+A Pause verb indicates the runtime to pause something playable.
 
 ### Parameters
-- `channel`: the name of the audio channel. Accept `string` or `*string`.
+- `id`: the playback id to pause. Accept `string` or `*string`.
+
+### Returns
+A nothing.
+
+### Examples
+```
+/pause "sound.mp3";
+```
+
+## Std.Resume
+
+A Resume verb indicates the runtime to resume something playable.
+
+### Parameters
+- `id`: the playback id to resume. Accept `string` or `*string`.
+
+### Returns
+A nothing.
+
+### Examples
+```
+/resume "sound.mp3";
+```
+
+## Std.SetVolume
+
+A SetVolume verb indicates the runtime to set the volume of a ongoing playback.
+
+### Parameters
+- `id`: the playback id to set the volume for. Accept `string` or `*string`.
 - `volume`: the volume level. Accept `double` or `*double`.
 
 ### Returns
-A Nothing.
+A nothing.
 
 ### Attributes
-- **fade**: the fade duration in seconds. Defaults to 0.0.
-- **easing**: the easing function. Defaults to "linear".
+- **Fade**: the fade duration in seconds. Defaults to 0.0.
+- **Easing**: the easing function. Defaults to "linear".
 
 ### Examples
 ```
-/SetAudioChannelVolume "channel_name", 0.5;
+/setVolume "sound.mp3", 0.5;
 ```
