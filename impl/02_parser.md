@@ -77,8 +77,8 @@ SugarStatement:
   | ForkSugar               # ====+ @label;
   | CallSugar               # <===+ @label;
   | FlagSugar               # #flag name value;
-  | EvalSugar               # $`expr`;
-  | InterpolateSugar        # $"string";
+  | EvalSugar               # /`expr`;
+  | InterpolateSugar        # /"string";
 ```
 
 ### Label
@@ -148,8 +148,8 @@ call_sugar      := CALL attributes? AT label_ref (value)* SEMICOLON
 label_ref       := (IDENTIFIER COLON)? IDENTIFIER
 
 flag_sugar      := HASH FLAG attributes? IDENTIFIER value SEMICOLON
-eval_sugar      := DOLLAR_BACKTICK expr_content BACKTICK attributes? SEMICOLON
-interpolate_sugar := DOLLAR_QUOTE string_content QUOTE attributes? SEMICOLON
+eval_sugar      := SLASH_BACKTICK expr_content BACKTICK attributes? SEMICOLON
+interpolate_sugar := SLASH_QUOTE string_content QUOTE attributes? SEMICOLON
 ```
 
 ---
@@ -218,9 +218,9 @@ parseStatement():
         return parseCallSugar()
     if check(HASH):
         return parsePreprocessor()
-    if check(DOLLAR_BACKTICK):
+    if check(SLASH_BACKTICK):
         return parseEvalSugar()
-    if check(DOLLAR_QUOTE):
+    if check(SLASH_QUOTE):
         return parseInterpolateSugar()
     
     error("Unexpected token")
@@ -423,9 +423,9 @@ Sugar statements should be transformed to standard verb calls:
 | `<===+ @label;` | `/call ?, "label";` |
 | `<===+ [attr] @label;` | `/call [attr] ?, "label";` |
 | `<===+ @story:label *var;` | `/call "story", "label", *var;` |
-| `` $`expr`; `` | `/evaluate `expr`;` |
-| `` $`expr` [attr]; `` | `/evaluate [attr] `expr`;` |
-| `$"string";` | `/interpolate "string";` |
+| `` /`expr`; `` | `/evaluate `expr`;` |
+| `` /`expr` [attr]; `` | `/evaluate [attr] `expr`;` |
+| `/"string";` | `/interpolate "string";` |
 | `#flag name value;` | `/flag "name", value;` |
 | `#flag [attr] name value;` | `/flag [attr] "name", value;` |
 

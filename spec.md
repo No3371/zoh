@@ -76,7 +76,7 @@ The Last Coffee Shop
 /converse [By: "Barista"] "Coming right up.";
 /sleep 1.5;
 
-*trust <- $`*trust + 1`;    :: Small gesture of patience
+*trust <- /`*trust + 1`;    :: Small gesture of patience
 ====> @sit_down;
 
 @sit_down
@@ -506,9 +506,9 @@ The nature of the language requires user awareness of the difference between `/s
 *var <- `expr`;        :: works, *var now holds the expression
 *var <- *`expr`;       :: works, *var now holds the value of the expression reference
 *var <- /eval `expr`;; :: works, BUT *var now holds THE /EVAL call, not the evaluated value of the call
-*var <- $`expr`;;      :: works, BUT *var now holds THE /EVAL call, not the evaluated value of the call
+*var <- /`expr`;;      :: works, BUT *var now holds THE /EVAL call, not the evaluated value of the call
 
-*var <- $"expr";;      :: works, BUT *var now holds THE /INTERPOLATE call, not a interpolated string
+*var <- /"expr";;      :: works, BUT *var now holds THE /INTERPOLATE call, not a interpolated string
 ```
 
 ### Core.Get
@@ -705,7 +705,7 @@ The interpolated string.
 #### Examples
 ```
 *name <- "John";
-/interpolate "Hello, ${*name}!"; :: returns "Hello, John!"
+/"Hello ${*name}"; :: returns "Hello, John!"
 
 *format <- "Hello, ${*format}!";
 /interpolate *format; :: returns "Hello, Hello, {*format}!!"
@@ -714,8 +714,8 @@ The interpolated string.
 #### Syntactic Sugar Forms
 C# style string interpolation:
 ```
-$"It's a me, ${*name}!";
-$'Hello, ${*name}!';
+/"It's a me, ${*name}!";
+/'Hello, ${*name}!';
 ```
 
 ### Core.Evaluate
@@ -758,16 +758,16 @@ The result of the expression, type depends on the expression.
 ```
 #### Syntactic Sugar Forms
 ```
-$`*var+1`;
-$`*var+1` [attribute];
-$`*var+1` [attr1] [attr2];
+/`*var+1`;
+/`*var+1` [attribute];
+/`*var+1` [attr1] [attr2];
 ```
 
 ##### Examples
 ```
-$`*var+1`;
+/`*var+1`;
 -> *var+1;     :: /capture the returned value
-<- *var[$`*index+1`];; :: /get "var", `*var+1`;;
+<- *var[/`*index+1`];; :: /get "var", `*var+1`;;
 ```
 
 ### Store.Write
