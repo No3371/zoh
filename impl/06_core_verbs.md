@@ -110,12 +110,19 @@ setAtPath(context, varName, path, value, scope):
 
     for i in range(0, path.length - 1):
         index = resolve(path[i], context)
+        while index is ExpressionValue:
+            index = evaluate(index.ast, context)
+        if index is not Integer and index is not String:
+            return fatal("invalid_index_type", "Index must be integer or string")
+
         current = getIndexed(current, index)
         if current.isNothing():
             return fatal("invalid_index", "Path element does not exist at index " + i)
 
     # Set final element
     finalIndex = resolve(path[path.length - 1], context)
+    while finalIndex is ExpressionValue:
+        finalIndex = evaluate(finalIndex.ast, context)
     return setIndexed(current, finalIndex, value)
 
 getScope(call): string
@@ -159,6 +166,8 @@ getAtPath(context, varName, path):
 
     for pathElement in path:
         index = resolve(pathElement, context)
+        while index is ExpressionValue:
+            index = evaluate(index.ast, context)
         value = getIndexed(value, index)
         if value.isNothing():
             return Nothing  # Path navigation stops at nothing
@@ -373,6 +382,7 @@ See [04_expressions.md](./04_expressions.md) for full evaluation logic.
 
 ```
 TypeDriver.execute(call, context):
+    # resolve() may return fatal("invalid_index_type", ...) if path has wrong index type
     value = resolve(call.params[0], context)
     return ok(StringValue(value.getType()))
 ```
@@ -718,6 +728,7 @@ DebugDriver.execute(call, context):
 
 ```
 HasDriver.execute(call, context):
+    # resolve() may return fatal("invalid_index_type", ...) if path has wrong index type
     collection = resolve(call.params[0], context)
     subject = resolve(call.params[1], context)
     
@@ -729,7 +740,7 @@ HasDriver.execute(call, context):
     
     if collection is MapValue:
         if subject is not StringValue:
-            return fatal("invalid_type", "Map key must be string, got: " + subject.getType())
+            return fatal("invalid_index_type", "Map key must be string, got: " + subject.getType())
         return ok(BoolValue(collection.hasKey(subject.value)))
     
     return fatal("invalid_type", "Expected list or map, got: " + collection.getType())
@@ -765,7 +776,7 @@ AnyDriver.execute(call, context):
         
         if value is MapValue:
             if index is not StringValue:
-                return fatal("invalid_type", "Map key must be string, got: " + index.getType())
+                return fatal("invalid_index_type", "Map key must be string, got: " + index.getType())
             return ok(BoolValue(value.hasKey(index.value) and not value.get(index.value).isNothing()))
     
     return ok(BoolValue(not value.isNothing()))
@@ -825,15 +836,18 @@ AppendDriver.execute(call, context):
     collectionRef = call.params[0]
     if collectionRef is not ReferenceValue:
         return fatal("invalid_type", "Expected reference")
-    
-    collection = context.get(collectionRef.name)
+
+    # Use getAtPath to support nested paths like *data["items"]
+    # May return fatal("invalid_index_type", ...) if path has wrong index type
+    collection = getAtPath(context, collectionRef.name, collectionRef.path)
+
+    # resolve() may also return fatal("invalid_index_type", ...)
     value = resolve(call.params[1], context)
-    
+
     if collection is ListValue:
         collection.append(value)
-        context.set(collectionRef.name, collection)
-        return ok(IntegerValue(collection.count()))
-    
+        return setAtPath(context, collectionRef.name, collectionRef.path, collection, getScope(call))
+
     if collection is MapValue:
         # value should be a single-entry map {"key": val}
         if value is not MapValue or value.entries.size != 1:
@@ -842,9 +856,8 @@ AppendDriver.execute(call, context):
             if collection.hasKey(key):
                 return error("key_conflict", "Key already exists: " + key)
             collection.set(key, val)
-        context.set(collectionRef.name, collection)
-        return ok(IntegerValue(collection.count()))
-    
+        return setAtPath(context, collectionRef.name, collectionRef.path, collection, getScope(call))
+
     return fatal("invalid_type", "Expected list or map")
 ```
 
@@ -866,26 +879,28 @@ RemoveDriver.execute(call, context):
     collectionRef = call.params[0]
     if collectionRef is not ReferenceValue:
         return fatal("invalid_type", "Expected reference")
-    
-    collection = context.get(collectionRef.name)
+
+    # Use getAtPath to support nested paths like *data["items"]
+    # May return fatal("invalid_index_type", ...) if path has wrong index type
+    collection = getAtPath(context, collectionRef.name, collectionRef.path)
+
+    # resolve() may also return fatal("invalid_index_type", ...)
     index = resolve(call.params[1], context)
-    
+
     if collection is ListValue:
         idx = index.toInt()
         if idx < 0:
             idx = collection.count() + idx  # Negative indexing
         if idx >= 0 and idx < collection.count():
             collection.remove(idx)
-        context.set(collectionRef.name, collection)
-        return ok(IntegerValue(collection.count()))
-    
+        return setAtPath(context, collectionRef.name, collectionRef.path, collection, getScope(call))
+
     if collection is MapValue:
         if index is not StringValue:
-            return fatal("invalid_type", "Map key must be string, got: " + index.getType())
+            return fatal("invalid_index_type", "Map key must be string, got: " + index.getType())
         collection.remove(index.value)  # No-op if key doesn't exist
-        context.set(collectionRef.name, collection)
-        return ok(IntegerValue(collection.count()))
-    
+        return setAtPath(context, collectionRef.name, collectionRef.path, collection, getScope(call))
+
     return fatal("invalid_type", "Expected list or map")
 ```
 
@@ -907,22 +922,24 @@ InsertDriver.execute(call, context):
     listRef = call.params[0]
     if listRef is not ReferenceValue:
         return fatal("invalid_type", "Expected reference")
-    
-    list = context.get(listRef.name)
+
+    # Use getAtPath to support nested paths like *data["items"]
+    # May return fatal("invalid_index_type", ...) if path has wrong index type
+    list = getAtPath(context, listRef.name, listRef.path)
     if list is not ListValue:
         return fatal("invalid_type", "Expected list")
-    
+
+    # resolve() may also return fatal("invalid_index_type", ...)
     index = resolve(call.params[1], context).toInt()
     value = resolve(call.params[2], context)
-    
+
     if index < 0:
         index = list.count() + index + 1  # Negative: insert from end
     if index < 0 or index > list.count():
         return error("invalid_index", "Index out of bounds: " + index.toString())
-    
+
     list.insert(index, value)
-    context.set(listRef.name, list)
-    return ok(IntegerValue(list.count()))
+    return setAtPath(context, listRef.name, listRef.path, list, getScope(call))
 ```
 
 ---
@@ -943,18 +960,19 @@ ClearDriver.execute(call, context):
     collectionRef = call.params[0]
     if collectionRef is not ReferenceValue:
         return fatal("invalid_type", "Expected reference")
-    
-    collection = context.get(collectionRef.name)
-    
+
+    # Use getAtPath to support nested paths like *data["items"]
+    # May return fatal("invalid_index_type", ...) if path has wrong index type
+    collection = getAtPath(context, collectionRef.name, collectionRef.path)
+
     if collection is ListValue:
         collection.elements.clear()
     elif collection is MapValue:
         collection.entries.clear()
     else:
         return fatal("invalid_type", "Expected list or map")
-    
-    context.set(collectionRef.name, collection)
-    return ok()
+
+    return setAtPath(context, collectionRef.name, collectionRef.path, collection, getScope(call))
 ```
 
 ---

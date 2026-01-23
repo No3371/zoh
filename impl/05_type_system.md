@@ -389,10 +389,14 @@ resolveReference(ref: ReferenceValue, context: Context): Value
     
     # Handle indexed access
     index = evaluate(ref.index, context)
+
+    # Implicitly resolve expressions in path
+    while index is ExpressionValue:
+        index = evaluate(index.ast, context)
     
     if baseValue is ListValue:
         if index is not Integer:
-            error("List index must be integer")
+            return fatal("invalid_index_type", "List index must be integer, got: " + index.getType())
         i = index.toInt()
         if i < 0:
             i = baseValue.count() + i  # Negative indexing
@@ -400,10 +404,10 @@ resolveReference(ref: ReferenceValue, context: Context): Value
     
     if baseValue is MapValue:
         if index is not StringValue:
-            error("Map index must be string, got: " + index.getType())
+            return fatal("invalid_index_type", "Map index must be string, got: " + index.getType())
         return baseValue.get(index.value) ?? Nothing
     
-    error("Cannot index type: " + baseValue.getType())
+    return fatal("invalid_index_type", "Cannot index type: " + baseValue.getType())
 ```
 
 ---

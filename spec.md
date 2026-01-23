@@ -337,6 +337,10 @@ Variable names are case-insensitive, can NOT start with digits and can NOT conta
 	- Denoted as `*variable_name` or `*variable_name[index1][index2]...` for nested access.
 	- A reference value carries a path of zero or more indexes for nested collection navigation.
 	- Each index navigates into a collection: integers for lists (0-based), strings for map keys.
+	- **Implicit Resolution**: If an index evaluates to an `expression`, it is automatically evaluated (recursively) until a non-expression value is matched.
+	- **Index Type Validation**: After resolution, indices must match collection type:
+		- Lists: integer required (fatal `invalid_index_type` otherwise)
+		- Maps: string required (fatal `invalid_index_type` otherwise)
 	- Path resolution behavior depends on context:
 		- In expressions: fatal if path element doesn't exist (operations can't work with nothing)
 		- In `/get`: returns `?` if path element doesn't exist (query semantic)
@@ -436,6 +440,7 @@ These are diagnostics that maybe returned by any verb.
 - Fatal: `invalid_type`: Any supplied parameter is not of valid types.
 - Fatal: `parameter_not_found`: Any required parameter is not provided.
 - Error: `invalid_attribute`: Any supplied attribute is invalid. Should be returned by all verbs when a attribute is found and handled but the value is invalid.
+- Fatal: `runtime_error`: Any undefined error/exception from runtime implenmentation.
 
 ## Core Verbs
 Core verbs are expected to be implemented by all runtimes, while [standard verbs](./std_verbs.md) are expected to play most stories without issues.
@@ -449,7 +454,8 @@ The verb declares a variable or updates an existing variable.
 - `value`: the value to set. Accept `any`. In case it's a reference, the value of the reference is used. Results in a fatal error in case the variable is already typed and the value is not of the same type.
 
 #### Diagnostics
-- Fatal: `invalid_index`: The index provided is invalid.
+- Fatal: `invalid_index`: The path provided does not exist (for intermediate path elements).
+- Fatal: `invalid_index_type`: The index provided is of the wrong type for the collection.
 - Fatal: `invalid_value`: The value provided is not listed in the provided OneOf list.
 - Fatal: `required`: The variable is not assigned and the value is not provided.
 - Fatal: `type_mismatch`: The value type does not match the variable's declared type (via `[typed]` attribute).
@@ -525,7 +531,7 @@ The value of the variable. Returns `?` if the variable does not exist or path na
 - `required`: outputs an error if returning a nothing.
 
 #### Diagnostics
-- Fatal: `invalid_index`: path navigation failed due to invalid index type.
+- Fatal: `invalid_index_type`: path navigation failed due to invalid index type.
 - Error: `not_found`: returning `nothing` but the verb is marked `[required]`.
 
 #### Examples
@@ -557,7 +563,7 @@ A drop verb deletes a variable from story or context, or sets a nested element t
 - **scope** (string: `context`/`story`): the scope to drop the variable from. Requires a value of either `context` or `story`. The runtime should default to `story` if the attribute not specified. Accept `"string"`.
 
 #### Diagnostics
-- Fatal: `invalid_index`: path navigation failed due to invalid index type.
+- Fatal: `invalid_index_type`: path navigation failed due to invalid index type.
 
 #### Returns
 A nothing.
@@ -579,7 +585,7 @@ Internally should be implemented with a `/set`.
 - `target`: the variable to capture into. Accept `*reference` or `*reference[path...]`. The reference name identifies the variable; the optional path navigates into nested collections.
 
 #### Diagnostics
-- Fatal: `invalid_index`: path navigation failed due to invalid index type.
+- Fatal: `invalid_index_type`: path navigation failed due to invalid index type.
 
 #### Returns
 A nothing.
@@ -884,7 +890,10 @@ A nothing.
 A type verb returns the type of a variable.
 
 #### Parameters
-- `var`: the variable to type. Accept references. 
+- `var`: the variable to type. Accept references.
+
+#### Diagnostics
+- Fatal: `invalid_index_type`: Path navigation failed due to invalid index type.
 
 #### Returns
 String. `string`/`integer`/`double`/`boolean`/`list`/`map`/`verb`/`channel`/`expression`/`nothing`/`unknown`.
@@ -905,7 +914,8 @@ A count verb returns the size of a variable.
 
 #### Diagnostics
 - Fatal: `invalid_type`: the value to count is not of type `string`/`list`/`map`/`channel`/`nothing`.
-- Fatal: `invalid_index`: path navigation failed.
+- Fatal: `invalid_index`: Path element missing.
+- Fatal: `invalid_index_type`: Index is wrong type for collection.
 
 #### Returns
 The integer size of the variable. For `nothing`, returns 0.
@@ -1127,6 +1137,7 @@ A has verb checks if a variable is in a list or is it a key in a map.
 
 #### Diagnostics
 - Fatal: `invalid_type`: The collection is not a list or map.
+- Fatal: `invalid_index_type`: Path navigation failed due to invalid index type.
 
 #### Returns
 A boolean.
@@ -1144,6 +1155,9 @@ An any verb returns `true` if a `/get` against the provided variable and index d
 #### Parameters
 - `var`: The variable to check. Accept `any`. If it is a reference, the value is used.
 - `index`: The index to check. Accept `?`, `integer`/`*integer` for [list] or `"string"`/`*"string"` for {map}. Optional, defaults to `?`. In case of `?`, the runtime checks the variable itself.
+
+#### Diagnostics
+- Fatal: `invalid_index_type`: Index is wrong type for collection (e.g., string index on list).
 
 #### Returns
 A boolean.
@@ -1472,6 +1486,7 @@ An append verb appends a value to a list, or a key-value pair to a map.
 
 #### Diagnostics
 - Fatal: `invalid_type`: The collection is not a list or map.
+- Fatal: `invalid_index_type`: Path navigation failed due to invalid index type.
 - Error: `key_conflict`: The key already exists in the map.
 
 #### Returns
@@ -1495,6 +1510,7 @@ No effect if the index is out of bounds or the key does not exist.
 
 #### Diagnostics
 - Fatal: `invalid_type`: The collection is not a list or map.
+- Fatal: `invalid_index_type`: Path navigation failed due to invalid index type.
 
 #### Returns
 The size of the list or map after the removal. Integer.
@@ -1516,6 +1532,7 @@ An insert verb inserts a value into a list.
 
 #### Diagnostics
 - Fatal: `invalid_type`: The collection is not a list.
+- Fatal: `invalid_index_type`: Path navigation failed due to invalid index type.
 - Error: `invalid_index`: The index is out of bounds.
 
 #### Returns
@@ -1535,6 +1552,7 @@ A clear verb clears a list or map.
 
 #### Diagnostics
 - Fatal: `invalid_type`: The collection is not a list or map.
+- Fatal: `invalid_index_type`: Path navigation failed due to invalid index type.
 
 #### Returns
 A nothing.
@@ -1571,7 +1589,8 @@ An increase verb increases a variable by a value.
 
 #### Diagnostics
 - Fatal: `invalid_type`: The target value is not numeric (integer or double).
-- Fatal: `invalid_index`: Path navigation failed.
+- Fatal: `invalid_index`: Path element missing.
+- Fatal: `invalid_index_type`: Index is wrong type for collection.
 
 #### Returns
 The value of the variable after the increase. Integer or double.
@@ -1596,7 +1615,8 @@ A decrease verb decreases a variable by a value.
 
 #### Diagnostics
 - Fatal: `invalid_type`: The target value is not numeric (integer or double).
-- Fatal: `invalid_index`: Path navigation failed.
+- Fatal: `invalid_index`: Path element missing.
+- Fatal: `invalid_index_type`: Index is wrong type for collection.
 
 #### Returns
 The value of the variable after the decrease. Integer or double.

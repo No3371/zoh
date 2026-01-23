@@ -99,3 +99,14 @@ Update `getAtPath` and `setAtPath` helpers conceptually (though they delegate to
 ## Conclusion
 
 To fully realize the power of Nested Paths, the spec should be updated to mandate implicit resolution of `Expression` values when used as path indices.
+
+## Addendum
+
+### Note on Existing Spec Usage
+The specification already contained examples of implicit expression resolution in syntactic sugar, specifically `` <- *var[\`*index+1\`];; ``, which is a bug introduced by previous projects that adapt the verbs from dedicated index parameters to embeded path in references. This project fills the gap.
+
+### Error Handling
+- **Recursion Depth**: The runtime MUST enforce a maximum recursion depth (e.g., 20) during implicit resolution to prevent infinite loops (e.g., explicit or implicit self-reference).
+- **Invalid Types**: If resolution yields an invalid index type (e.g., `Double` for a List), it produces a Fatal `invalid_index_type` diagnostic.
+  *Update*: `spec-DIAG-002` standardized this across all relevant core verbs: `/set`, `/get`, `/drop`, `/capture`, `/count`, `/increase`, `/decrease`, `/has`, `/any`.
+- **Runtime Safety**: Driver execution is guarded to catch unhandled exceptions (like recursion limit violations or invalid type operations) and report them as Fatal runtime errors (ZOH Diagnostics with Fatal severity), ensuring the host application does not crash.
