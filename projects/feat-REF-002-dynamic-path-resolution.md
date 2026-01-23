@@ -11,12 +11,7 @@ However, the specification does not define behavior when the evaluation of an in
 
 1.  **Strict Typing**: Lists require `Integer` indices. Maps require `String` keys.
 2.  **Invalid Usage**: If a variable `*logic` holds an expression `` `1+1` ``, using it as a reference index `*list[*logic]` currently results in a Fatal Error (Invalid Type), because `ExpressionValue` is not an `Integer`.
-3.  **Missing Feature**: Users cannot use stored logic or verb calls to dynamically determine a path index inline, forcing verbose workarounds:
-    ```zoh
-    :: Workaround required currently
-    *idx <- [resolve] *logic;
-    <- *list[*idx];
-    ```
+3.  **Missing Feature**: Users cannot use stored logic or verb calls to dynamically determine a path index inline, forcing verbose workarounds.
 
 ## Flaw Analysis
 
@@ -28,16 +23,13 @@ The specification is "broken" or incomplete because it restricts index types wit
 > `spec.md:339`
 > `- Each index navigates into a collection: integers for lists (0-based), strings for map keys.`
 
-This line implies that *only* integers and strings are valid indices. It fails to mention that an attribute (like `[resolve]`) or implicit behavior should resolve other types *into* integers/strings.
+This line implies that *only* integers and strings are valid indices. It fails to mention that implicit resolution should resolve other types *into* integers/strings.
 
 **2. `expr.md` - Grammar permits expressions but behavior is undefined:**
 > `expr.md:36`
 > `index := integer_literal | string_literal | reference | expression`
 
-The expression grammar *allows* an expression to be an index, but `spec.md` doesn't describe how that expression is processed (evaluated vs treated as a literal value) during path navigation. The default assumption in ZOH is that values are passed as-is unless `[resolve]` is used, but `[resolve]` cannot be applied to individual path indices in the current syntax `*var[index]`.
-
-### Conclusion
-The spec defines `Expression` and `Verb` as first-class values but renders them unusable in this context, creating a syntax trap where the grammar allows `*var[`expr`]` but the runtime (following spec) would Fatal on "Invalid Type".
+The grammar allows expressions, but the runtime processing isn't defined to recursively evaluate them during path navigation.
 
 ## Proposed Change
 
@@ -65,13 +57,45 @@ When navigating a reference path `*var[index1][index2]...`:
 <- *list[*getter];     :: Fatal error: Invalid Type (VerbValue is not Integer)
 ```
 
+## Spec & Impl Updates
+
+### `spec.md`
+
+Update **Reference Paths** section:
+```markdown
+- Each index navigates into a collection:
+    - Lists: Requires integer (0-based).
+    - Maps: Requires string key.
+- **Implicit Resolution**: If an index evaluates to an `expression`, it is automatically evaluated (recursively) until a non-expression value is matched.
+```
+
+### `impl/05_type_system.md`
+
+Update `resolveReference` pseudocode:
+
+```diff
+    # Handle indexed access
+    index = evaluate(ref.index, context)
++   
++   # Implicitly resolve expressions in path
++   while index is ExpressionValue:
++       index = evaluate(index.ast, context)
+    
+    if baseValue is ListValue:
+```
+
+### `impl/06_core_verbs.md`
+
+Update `getAtPath` and `setAtPath` helpers conceptually (though they delegate to `resolve`, `resolve` usually only handles `Reference` -> `Value`. Path resolution logic needs the extra expression evaluation step explicitly added or defined in the `resolve` helper for indices).
+
+**Guidance**: The implementation should centralize this "Path Index Resolution" logic to ensure `set`, `get`, `drop` and `eval` all behave consistently.
+
 ## Considerations
 
--   **Safety**: Restricting to Expressions avoids the "surprise side effects" of executing full verbs like `/delete_all_files;` just by accessing a variable. Expressions are generally safer (though they can call read-only special forms).
--   **Syntax**: `*var[`expr`]` closely resembles standard `arr[i+1]` indexing in other languages. `*var[/verb;]` is syntactically awkward and jarring.
--   **Consistency**: While ZOH is verb-centric, path navigation is a "query" operation. Expressions map well to "calculating a value", whereas Verbs map to "performing an action".
--   **Map Keys**: Maps usually stringify keys. If we resolve, we lose the ability to use the *string representation* of an expr as a key. This is acceptable as the utility of dynamic keys outweighs using raw expression code as a map key.
+-   **Safety**: Restricting to Expressions avoids the "surprise side effects" of executing full verbs.
+-   **Syntax**: `*var[`expr`]` closely resembles standard `arr[i+1]` indexing.
+-   **Consistency**: Maps dynamic navigation to "calculating" a location rather than "acting" to find a location.
 
 ## Conclusion
 
-To fully realize the power of Nested Paths, the spec should be updated to mandate implicit resolution of `Verb` and `Expression` values when used as path indices.
+To fully realize the power of Nested Paths, the spec should be updated to mandate implicit resolution of `Expression` values when used as path indices.
