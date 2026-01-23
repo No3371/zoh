@@ -441,6 +441,7 @@ These are diagnostics that maybe returned by any verb.
 - Fatal: `parameter_not_found`: Any required parameter is not provided.
 - Error: `invalid_attribute`: Any supplied attribute is invalid. Should be returned by all verbs when a attribute is found and handled but the value is invalid.
 - Fatal: `runtime_error`: Any undefined error/exception from runtime implenmentation.
+- Info: `timeout`: The timeout was reached.
 
 ## Core Verbs
 Core verbs are expected to be implemented by all runtimes, while [standard verbs](./std_verbs.md) are expected to play most stories without issues.
@@ -1185,30 +1186,33 @@ The first value that `/any` returns `true` for. If no case matches, returns a `n
 ```
 
 ### Core.Jump
-A jump verb instruct the context to jump to a [label](#label) in a story.
+A jump verb instruct the context to jump to a [checkpoint](#checkpoints) in a story.
 
 In case of jumping to other stories, story-scoped variables are dropped while context-scoped variables are preserved. In order to *transfer* story-scoped variables, use the `var` parameters.
 
+**Validation**: If the target checkpoint defines a contract (required variables), the runtime validates that these variables exist and are not `nothing` in the context (after applying any `var` parameters). If validation fails, a fatal error is raised.
+
 #### Parameters
 - `story`: the story to jump to. Accept `"string"`/`*"string"`, or `?`.
-- `label`: the label to jump to. Accept `"string"`/`*"string"`.
+- `checkpoint`: the checkpoint to jump to. Accept `"string"`/`*"string"`.
 - Repeating:
     - `var`: references to story-scoped variables to *transfer*. Accept references. The name of the references are used by the `/set` operation.
 
 #### Diagnostics
-- Fatal: `invalid_type`: Story or label parameter is not a string (or nothing for story).
+- Fatal: `invalid_type`: Story or checkpoint parameter is not a string (or nothing for story).
 - Fatal: `invalid_story`: The story to jump to does not exist.
-- Fatal: `invalid_label`: The label to jump to does not exist.
+- Fatal: `invalid_checkpoint`: The checkpoint to jump to does not exist.
+- Fatal: `checkpoint_violation`: A required variable for the checkpoint is missing or `nothing`.
 
 #### Returns
 A nothing.
 
 #### Examples
 ```
-/jump "story", "label", *var1, *var2;
+/jump "story", "checkpoint", *var1, *var2;
 /jump/
 	?
-	"label"
+	"checkpoint"
 	*var1
 	*var2
 /;
@@ -1216,20 +1220,13 @@ A nothing.
 
 #### Syntactic Sugar Forms
 ```
-====> @story:label *var1 *var2;
-====> @label *var1 *var2;       :: omitting story
+====> @story:checkpoint *var1 *var2;
+====> @checkpoint *var1 *var2;       :: omitting story
 
-====>
-/story
-label
-*var1
-*var2
-;
-
-====> [attr] @label;
+====> [attr] @checkpoint;
 
 ====> [attr1] [attr2]
-@story:label
+@story:checkpoint
 *var1
 *var2
 ;
@@ -1240,16 +1237,19 @@ A fork is similar to jump but starts a new context to execute from the destinati
 
 To `/set` variables in the newly forked context, use the `var` parameters.
 
+**Validation**: Validates the target checkpoint's contract against the *newly forked context's state*.
+
 #### Parameters
 - `story`: the story to jump to. Accept `"string"`/`*"string"`, or `?`.
-- `label`: the label to jump to. Accept `"string"`/`*"string"`.
+- `checkpoint`: the checkpoint to jump to. Accept `"string"`/`*"string"`.
 - Repeating:
     - `var`: references to variables that will be used to `/set` in the forked context before execution. Scope of the variables are preserved. The name of the references are used by the `/set` operation.
 
 #### Diagnostics
-- Fatal: `invalid_type`: Story or label parameter is not a string (or nothing for story).
+- Fatal: `invalid_type`: Story or checkpoint parameter is not a string (or nothing for story).
 - Fatal: `invalid_story`: The story to jump to does not exist.
-- Fatal: `invalid_label`: The label to jump to does not exist.
+- Fatal: `invalid_checkpoint`: The checkpoint to jump to does not exist.
+- Fatal: `checkpoint_violation`: A required variable for the checkpoint is missing or `nothing`.
 
 #### Attributes
 - `clone`: if the forked context should be a clone of the current context. A cloned context have all the variables and flags of the current context.
@@ -1259,30 +1259,30 @@ A nothing.
 
 #### Examples
 ```
-/fork "story", "label", *var1, *var2;
+/fork "story", "checkpoint", *var1, *var2;
 ```
 
 #### Syntactic Sugar Forms
 ```
-====+ @story:label *var1 *var2;
-====+ @label clone:true;
-====+ [clone] @label;
+====+ @story:checkpoint *var1 *var2;
+====+ @checkpoint clone:true;
+====+ [clone] @checkpoint;
 
 ====+
-@story:label
+@story:checkpoint
 *var1
 *var2
 ;
 
 ====+ [attr1] [attr2]
-@story:label
+@story:checkpoint
 *var1
 *var2
 ;
 
 ====+
 [attr]
-@label
+@checkpoint
 ;
 ```
 
@@ -1292,16 +1292,19 @@ A call verb is similar to fork but it blocks the current context until the forke
 
 The last return value in the forked context before termination is returned by the call verb.
 
+**Validation**: Validates the target checkpoint's contract against the *newly forked context's state*.
+
 #### Parameters
 - `story`: the story to jump to. Accept `"string"`/`*"string"`, or `?`.
-- `label`: the label to jump to. Accept `"string"`/`*"string"`.
+- `checkpoint`: the checkpoint to jump to. Accept `"string"`/`*"string"`.
 - Repeating:
     - `var`: references to variables that will be used to `/set` in the forked context before execution. Accept references. Scope of the variables are preserved. When the call is marked with `inline` attribute, the context will use the values in the forked context to `/set` in the current context after the fork is terminated. If the forked context terminates with an error, the driver should forfeit the `/set` operation.
 
 #### Diagnostics
-- Fatal: `invalid_type`: Story or label parameter is not a string (or nothing for story).
+- Fatal: `invalid_type`: Story or checkpoint parameter is not a string (or nothing for story).
 - Fatal: `invalid_story`: The story to jump to does not exist.
-- Fatal: `invalid_label`: The label to jump to does not exist.
+- Fatal: `invalid_checkpoint`: The checkpoint to jump to does not exist.
+- Fatal: `checkpoint_violation`: A required variable for the checkpoint is missing or `nothing`.
 
 #### Attributes
 - `inline`: if the context should copy the value of the specified `var`s in the forked context back when it's terminated.
@@ -1312,31 +1315,31 @@ The last return value in the forked context before termination.
 
 #### Examples
 ```
-/call "story", "label", *var1, *var2;
+/call "story", "checkpoint", *var1, *var2;
 /call
 story:"story",
-label:"label",
+checkpoint:"checkpoint",
 ;
 ```
 
 #### Syntactic Sugar Forms
 ```
-<===+ @story:label *var1 *var2;
-<===+ @label;
-<===+ [attr] @label;
+<===+ @story:checkpoint *var1 *var2;
+<===+ @checkpoint;
+<===+ [attr] @checkpoint;
 
 <===+
 [attr]
-@label
+@checkpoint
 ;
 
 <===+
-@story:label
+@story:checkpoint
 *var1
 *var2
 ;
 <===+ [attr1] [attr2]
-@story:label
+@story:checkpoint
 *var1
 *var2
 ;

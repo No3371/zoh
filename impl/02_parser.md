@@ -15,11 +15,11 @@ StoryNode:
   name: string              # Story title
   metadata: Map<string,any> # Key-value metadata
   body: List<Statement>     # Top-level statements
-  labels: Map<string,int>   # Label -> statement index
+  checkpoints: Map<string,Checkpoint> # Name -> Checkpoint Node
 
 Statement: 
   | VerbCall
-  | Label
+  | Checkpoint
   | PreprocessorDirective
   | SugarStatement
 ```
@@ -81,11 +81,12 @@ SugarStatement:
   | InterpolateSugar        # /"string";
 ```
 
-### Label
+### Checkpoint
 
 ```
-LabelNode:
-  name: string              # Label name (without @)
+CheckpointNode:
+  name: string              # Checkpoint name (without @)
+  contract: List<Reference> # Required variables
   position: Position
 ```
 
@@ -100,9 +101,9 @@ story_header    := IDENTIFIER NEWLINE (metadata_entry)* STORY_SEP
 metadata_entry  := IDENTIFIER COLON value SEMICOLON
 
 story_body      := (statement)*
-statement       := verb_call | label | sugar_statement | preprocessor
+statement       := verb_call | checkpoint | sugar_statement | preprocessor
 
-label           := AT IDENTIFIER
+checkpoint      := AT IDENTIFIER (reference)*
 
 verb_call       := VERB_START namespaced_id attributes params SEMICOLON
                  | VERB_START namespaced_id VERB_START attributes params BLOCK_END
@@ -184,16 +185,16 @@ parseStory():
     metadata = parseMetadata()
     consume(STORY_SEP, "Expected '===' after metadata")
     
-    labels = Map<string, int>()
+    checkpoints = Map<string, CheckpointNode>()
     statements = []
     
     while not isAtEnd():
         stmt = parseStatement()
-        if stmt is LabelNode:
-            labels[stmt.name] = statements.length
+        if stmt is CheckpointNode:
+            checkpoints[stmt.name] = stmt
         statements.add(stmt)
     
-    return StoryNode { name, metadata, statements, labels }
+    return StoryNode { name, metadata, statements, checkpoints }
 ```
 
 ### Step 3: Statement Parsing
@@ -201,7 +202,7 @@ parseStory():
 ```
 parseStatement():
     if check(AT):
-        return parseLabel()
+        return parseCheckpoint()
     if check(VERB_START):
         return parseVerbCall()
     if check(ASTERISK):
@@ -493,9 +494,10 @@ synchronize():
 - [ ] Expressions
 - [ ] Channels
 
-### Labels
-- [ ] Label definition
-- [ ] Label reference in jump/fork/call
+### Checkpoints
+- [ ] Checkpoint definition
+- [ ] Checkpoint with contract: `@name *var1 *var2`
+- [ ] Checkpoint reference in jump/fork/call
 
 ### Sugar
 - [ ] Set sugar (all variants)
@@ -509,7 +511,7 @@ synchronize():
 - [ ] Missing semicolon
 - [ ] Unbalanced brackets
 - [ ] Invalid token in value position
-- [ ] Duplicate labels (should error)
+- [ ] Duplicate checkpoints (should error)
 
 ---
 
@@ -526,7 +528,7 @@ author: "Jane";
 /converse [By: "Narrator"] "Hello, ${*name}!";
 ====> @end;
 
-@end
+@end *name
 /exit;
 ```
 
@@ -535,9 +537,12 @@ Output AST:
 StoryNode {
   name: "Test Story",
   metadata: { "author": "Jane" },
-  labels: { "start": 0, "end": 3 },
+  checkpoints: { 
+      "start": CheckpointNode{name: "start", contract: []}, 
+      "end": CheckpointNode{name: "end", contract: ["name"]} 
+  },
   body: [
-    LabelNode { name: "start" },
+    CheckpointNode { name: "start", contract: [] },
     VerbCallNode {
       name: "set",
       attributes: [],
@@ -553,7 +558,7 @@ StoryNode {
       name: "jump",
       unnamedParams: [Nothing, "end"]
     },
-    LabelNode { name: "end" },
+    CheckpointNode { name: "end", contract: ["name"] },
     VerbCallNode {
       name: "exit",
       attributes: [],

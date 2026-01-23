@@ -211,7 +211,7 @@ ExecutionResult:
 ┌──────────────────────────────────────────────┐
 │               PARSER PHASE                   │
 │  - Parse token stream to AST                 │
-│  - Extract story name, metadata, labels      │
+│  - Extract story name, metadata, checkpoints │
 └──────────────────────────────────────────────┘
        │
        ▼
@@ -251,13 +251,13 @@ ExecutionResult:
 CompiledStory:
   name: string
   metadata: Map<string, Value>
-  labels: Map<string, int>        # label name → statement index
+  checkpoints: Map<string, CompiledCheckpoint>  # checkpoint name → compiled node
   statements: List<CompiledStatement>
   sourceMap: SourceMap            # For error reporting
 
 CompiledStatement:
   | CompiledVerbCall
-  | CompiledLabel
+  | CompiledCheckpoint
 
 CompiledVerbCall:
   namespace: string?
@@ -267,6 +267,11 @@ CompiledVerbCall:
   unnamedParams: List<CompiledValue>
   sourceLine: int                 # Original source line
   storyLine: int                  # Line in compiled story body
+
+CompiledCheckpoint:
+  name: string
+  contract: List<string>          # Required variable names
+  statementIndex: int             # Index in statements list
 
 CompiledValue:
   # Pre-processed for efficient execution
@@ -329,8 +334,8 @@ Context.run():
         
         statement = currentStory.statements[instructionPointer]
         
-        if statement is CompiledLabel:
-            # Labels are markers, skip
+        if statement is CompiledCheckpoint:
+            # Checkpoints are markers, skip
             instructionPointer++
             continue
         
