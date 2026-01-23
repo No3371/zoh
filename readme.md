@@ -68,7 +68,7 @@ The Last Coffee Shop
     "order" /jump ?, "at_counter";
     "leave" /jump ?, "walk_away";
 /; -> *dest;
-/do *dest;;
+/do *dest;
 
 @at_counter
 /converse [By: "Barista"] "Last call. What'll it be?";
@@ -76,7 +76,7 @@ The Last Coffee Shop
 /converse [By: "Barista"] "Coming right up.";
 /sleep 1.5;
 
-*trust <- $`*trust + 1`;    :: Small gesture of patience
+*trust [resolve] <- `*trust + 1`;    :: Small gesture of patience
 ====> @sit_down;
 
 @sit_down
@@ -92,7 +92,7 @@ The Last Coffee Shop
 /; -> *response;
 
 /if *response, is: "mirror", /sequence/
-    *trust <- $`*trust + 2`;
+    *trust [resolve] <- `*trust + 2`;
     /converse [By: "Woman"] "...No. I'm not.";
     /converse "For the first time, she smiles.";
 /;;
