@@ -76,7 +76,7 @@ The Last Coffee Shop
 /converse [By: "Barista"] "Coming right up.";
 /sleep 1.5;
 
-*trust <- /`*trust + 1`;    :: Small gesture of patience
+*trust [resolve] <- `*trust + 1`;    :: Small gesture of patience
 ====> @sit_down;
 
 @sit_down
@@ -92,7 +92,7 @@ The Last Coffee Shop
 /; -> *response;
 
 /if *response, is: "mirror", /sequence/
-    *trust <- $`*trust + 2`;
+    *trust [resolve] <- `*trust + 2`;
     /converse [By: "Woman"] "...No. I'm not.";
     /converse "For the first time, she smiles.";
 /;;
@@ -758,16 +758,15 @@ The result of the expression, type depends on the expression.
 ```
 #### Syntactic Sugar Forms
 ```
-/`*var+1`;
-/`*var+1` [attribute];
-/`*var+1` [attr1] [attr2];
+/`*var+1`;                 :: /eval `*var+1`;
+/`*var+1` [attr];     	   :: /eval [attr] `*var+1`;
+/`*var+1` [attr1] [attr2]; :: /eval [attr1] [attr2] `*var+1`;
 ```
 
 ##### Examples
 ```
 /`*var+1`;
--> *var+1;     :: /capture the returned value
-<- *var[/`*index+1`];; :: /get "var", `*var+1`;;
+<- *var[`*index+1`];; :: /get *var[`*index+1`];;
 ```
 
 ### Store.Write
