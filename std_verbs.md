@@ -8,12 +8,18 @@ A converse verb indicates the runtime to present a text at presentation layer.
 
 When multiple contents are provided, the runtime should represent them sequentially in individual presentations. That is, each content is handled as if it was a separate `/converse` verb. This enables clean syntax for multiple dialog in succession.
 
+### Named Parameters
+- `timeout`: the duration in seconds to wait before timing out. Accept `double`/`*double` or `?`. Optional.
+
 ### Parameters
 - Repeating of the following:
     - `content`: content to present. Accept `"string"`/`*"string"` or `` `expr` ``/`` *`expr` ``. In case of references, the value is used. In case of `` `expr` ``, the expression is evaluated. In case of `"string"`, it performs `/interpolate` once.
 
 ### Returns
 A nothing.
+
+### Diagnostics
+- Info: `timeout`: The timeout was reached.
 
 ### Attributes
 - **Append**: specify the content should be appended to existing presentation.
@@ -43,6 +49,7 @@ A choose verb indicates the runtime to present a choice interaction.
 
 ### Named Parameters
 - `prompt`: the prompt text. Accept `"string"`/`*"string` or `` `expr` ``/`` *`expr` ``. In case of references, the value is used. In case of `` `expr` ``, the expression is evaluated. In case of `"string"`, it performs `/interpolate` once. Optional.
+- `timeout`: the duration in seconds to wait before timing out. Accept `double`/`*double` or `?`. Optional.
 
 ### Parameters
 - Repeating of the following:
@@ -52,6 +59,9 @@ A choose verb indicates the runtime to present a choice interaction.
 
 ### Returns
 The value of the selected choice.
+
+### Diagnostics
+- Info: `timeout`: The timeout was reached.
 
 ### Attributes
 - **By**: specify the speaker. Accept `string` or `*string`.
@@ -75,12 +85,16 @@ A chooseFrom verb indicates the runtime to present a choice interaction from a l
 
 ### Named Parameters
 - `prompt`: the prompt text. Accept `"string"`/`*"string` or `` `expr` ``/`` *`expr` ``. In case of references, the value is used. In case of `` `expr` ``, the expression is evaluated. In case of `"string"`, it performs `/interpolate` once. Optional.
+- `timeout`: the duration in seconds to wait before timing out. Accept `double`/`*double` or `?`. Optional.
 
 ### Parameters
 - `choices`: the choices. Accept `[list]`/`*[list]` of single entry string-any `{map}`.
 
 ### Returns
 The value of the selected choice.
+
+### Diagnostics
+- Info: `timeout`: The timeout was reached.
 
 ### Attributes
 - **By**: specify the speaker. Accept `string` or `*string`.
@@ -103,9 +117,13 @@ A prompt verb indicates the runtime to present a text input.
 
 ### Parameters
 - `prompt`: the prompt text. Accept `"string"`/`*"string` or `` `expr` ``/`` *`expr` ``. In case of references, the value is used. In case of `` `expr` ``, the expression is evaluated. In case of `"string"`, it performs `/interpolate` once. Optional.
+- `timeout`: the duration in seconds to wait before timing out. Accept `double`/`*double` or `?`. Optional.
 
 ### Returns
 The string value of the input.
+
+### Diagnostics
+- Info: `timeout`: The timeout was reached.
 
 ### Attributes
 - **Style**: specify the style of the text. Accept `string` or `*string`. For example: "normal", "focus".

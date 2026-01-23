@@ -15,6 +15,8 @@ Standard verbs handle presentation and media, expected to play most stories. The
 #### Signature
 ```
 /converse [By:speaker] [Portrait:image] [Append] [Wait:bool] [Style:string]
+/converse [By:speaker] [Portrait:image] [Append] [Wait:bool] [Style:string]
+          timeout:seconds?
           content1, content2, ...;
 ```
 
@@ -33,6 +35,13 @@ ConverseDriver.execute(call, context):
         shouldWait = resolve(waitAttr.value, context).toBool()
     else:
         shouldWait = context.getFlag("interactive") ?? true
+
+    timeout = getNamedParam(call, "timeout")
+    if timeout != null:
+        timeoutVal = resolve(timeout, context).toDouble()
+        if timeoutVal <= 0:
+            return info("timeout", "Immediate timeout")
+        timeoutVal = timeoutVal * 1000 # Convert to ms if needed by runtime or keep as seconds
     
     # Process each content parameter as separate presentation
     for param in call.unnamedParams:
@@ -65,7 +74,9 @@ ConverseDriver.execute(call, context):
         
         # Wait for user input if interactive
         if shouldWait:
-            context.runtime.waitForContinue(context)
+            result = context.runtime.waitForContinue(context, timeoutVal) 
+            if result.isTimeout:
+                return info("timeout", "Operation timed out")
     
     return ok()
 ```
@@ -79,7 +90,7 @@ ConverseDriver.execute(call, context):
 #### Signature
 ```
 /choose [By:speaker] [Portrait:image] [Style:string]
-        prompt:text?,
+        prompt:text?, timeout:seconds?,
         visible1, text1, value1,
         visible2, text2, value2,
         ...;
@@ -97,6 +108,12 @@ ChooseDriver.execute(call, context):
     # Process prompt
     if prompt != null:
         prompt = resolveAndInterpolate(prompt, context)
+    
+    timeout = getNamedParam(call, "timeout")
+    if timeout != null:
+        timeoutVal = resolve(timeout, context).toDouble()
+        if timeoutVal <= 0:
+            return info("timeout", "Immediate timeout")
     
     # Parse choices (triplets: visible, text, value)
     choices = []
@@ -137,7 +154,12 @@ ChooseDriver.execute(call, context):
         style: style
     }
     
-    selectedIndex = context.runtime.presentChoice(presentation, context)
+    selectedIndex = -1
+    selectedIndex = context.runtime.presentChoice(presentation, context, timeoutVal)
+    
+    if selectedIndex == -1: # Timeout indicator
+        return info("timeout", "Operation timed out")
+        
     return ok(choices[selectedIndex].value)
 
 resolveAndInterpolate(param, context): Value
@@ -164,7 +186,7 @@ resolveAndInterpolate(param, context): Value
 
 #### Signature
 ```
-/chooseFrom [By:speaker] choices, prompt:text?;
+/chooseFrom [By:speaker] choices, prompt:text?, timeout:seconds?;
 ```
 
 #### Implementation
@@ -173,6 +195,12 @@ resolveAndInterpolate(param, context): Value
 ChooseFromDriver.execute(call, context):
     choicesList = resolve(call.params[0], context)
     prompt = getNamedParam(call, "prompt")
+    timeout = getNamedParam(call, "timeout")
+    
+    if timeout != null:
+        timeoutVal = resolve(timeout, context).toDouble()
+        if timeoutVal <= 0:
+            return info("timeout", "Immediate timeout")
     
     # choicesList is List of single-entry Maps: [{"text": value}, ...]
     choices = []
@@ -193,7 +221,12 @@ ChooseFromDriver.execute(call, context):
         choices: choices
     }
     
-    selectedIndex = context.runtime.presentChoice(presentation, context)
+    selectedIndex = -1
+    selectedIndex = context.runtime.presentChoice(presentation, context, timeoutVal)
+
+    if selectedIndex == -1: # Timeout indicator
+        return info("timeout", "Operation timed out")
+
     return ok(choices[selectedIndex].value)
 ```
 
@@ -205,7 +238,7 @@ ChooseFromDriver.execute(call, context):
 
 #### Signature
 ```
-/prompt [Style:string] text?;
+/prompt [Style:string] text?, timeout:seconds?;
 ```
 
 #### Implementation
@@ -217,6 +250,12 @@ PromptDriver.execute(call, context):
         promptText = resolveAndInterpolate(call.params[0], context)
     
     style = getAttribute(call, "Style")?.value ?? "normal"
+    timeout = getNamedParam(call, "timeout")
+
+    if timeout != null:
+        timeoutVal = resolve(timeout, context).toDouble()
+        if timeoutVal <= 0:
+             return info("timeout", "Immediate timeout")
     
     presentation = PresentationRequest {
         type: "prompt",
@@ -224,7 +263,11 @@ PromptDriver.execute(call, context):
         style: style.toString()
     }
     
-    userInput = context.runtime.presentPrompt(presentation, context)
+    userInput = context.runtime.presentPrompt(presentation, context, timeoutVal)
+    
+    if userInput == null: # Timeout indicator
+         return info("timeout", "Operation timed out")
+
     return ok(StringValue(userInput))
 ```
 
@@ -451,8 +494,8 @@ Runtime:
   # Presentation
   present(request: PresentationRequest): void
   waitForContinue(context: Context): void
-  presentChoice(request: PresentationRequest, context: Context): int
-  presentPrompt(request: PresentationRequest, context: Context): string
+  presentChoice(request: PresentationRequest, context: Context, timeout: double?): int
+  presentPrompt(request: PresentationRequest, context: Context, timeout: double?): string?
   
   # Media
   showMedia(request: MediaRequest): void

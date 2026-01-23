@@ -441,7 +441,7 @@ These are diagnostics that maybe returned by any verb.
 - Fatal: `parameter_not_found`: Any required parameter is not provided.
 - Error: `invalid_attribute`: Any supplied attribute is invalid. Should be returned by all verbs when a attribute is found and handled but the value is invalid.
 - Fatal: `runtime_error`: Any undefined error/exception from runtime implenmentation.
-- Info: `timeout`: The timeout was reached.
+- Info: `timeout`: The timeout was reached (operation cancelled per `timeout` parameter).
 
 ## Core Verbs
 Core verbs are expected to be implemented by all runtimes, while [standard verbs](./std_verbs.md) are expected to play most stories without issues.
