@@ -265,11 +265,20 @@ meta_map: {key1: value1, key2: value2};
 
 # Namespace
 
-Namespaces are used to group verbs, attributes. Each verb and attribute should be under a namespace. Namespace can be nested. Namespace can be omitted if the verb or attribute name is unique.
+Namespaces are used to group verbs, attributes. Each verb and attribute should be under a namespace. Namespace can be nested. Namespace MUST be explicitly prefixed if the symbol (\[namespace.\]name) is ambiguous, which results in `namespace_ambiguity` fatal diagnostic at runtime.
 
 ```
 /std.converse "Hello";
+/custom.converse "Hello";
+/converse "Hello"; // INVALID
+
+/c.d.c;
+/a.b.c;
+/d.c; // VALID
+/b.c; // VALID
+/c; // INVALID
 ```
+
 
 # Variables
 
@@ -378,7 +387,7 @@ All values can be converted to strings. This specification ensures consistent cr
 ## Attributes
 Inspired by C#, attributes are reusable components that can be marked on verb calls.
 
-Attributes are denoted as `[name:value]`, or `[name]` if the value is not required. In the latter case, the value is a `nothing`. All types are allowed for attribute values. Attribute names are case-insensitive, can not start with digits and can not contain whitespaces or reserved characters, and allows up to one `.` if namespace is used.
+Attributes are denoted as `[name:value]`, or `[name]` if the value is not required. In the latter case, the value is a `nothing`. All types are allowed for attribute values. Attribute names are case-insensitive, can not start with digits and can not contain whitespaces or reserved characters.
 
 Attributes are ALWAYS OPTIONAL and common parameters shared by indefinite verbs that map to common concepts that could be useful in various scenarios.
 
@@ -407,7 +416,7 @@ Verbs always return a list of diagnostics (if any) or `nothing`. The last diagno
 
 Verb behaviors are entirely determined by runtime implementation. If a runtime does not have a verb driver registered for a verb, simply nothing would happen and the playback continues. Authors should utilize required verbs metadata if certain verbs are required.
 
-Verb names are case-insensitive, can NOT start with digits and can NOT contain whitespaces or reserved characters, and allows up to one `.` if namespace is used. If both `a.talk` and `b.talk` is registered, only writing `/talk` is not allowed. Verbs can have aliases, which should be implemented as extra thin wrappers to the original verb.
+Verb names are case-insensitive, can NOT start with digits and can NOT contain whitespaces or reserved characters. Verbs can have aliases, which should be implemented as extra thin wrappers to the original verb.
 
 Verbs may have syntactic sugar forms, but these only exist in the source code and should be translated to the standard form by pre-processors.
 

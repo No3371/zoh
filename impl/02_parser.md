@@ -108,7 +108,8 @@ checkpoint      := AT IDENTIFIER (reference)*
 verb_call       := VERB_START namespaced_id attributes params SEMICOLON
                  | VERB_START namespaced_id VERB_START attributes params BLOCK_END
 
-namespaced_id   := IDENTIFIER (DOT IDENTIFIER)?
+namespaced_id   := IDENTIFIER (DOT IDENTIFIER)*
+                  // Note: IDENTIFIER cannot contain dots. Dots are strictly separators.
 
 attributes      := (attribute)*
 attribute       := LBRACKET IDENTIFIER (COLON value)? RBRACKET

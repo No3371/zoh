@@ -139,7 +139,31 @@ StoryValidator:
   validate(story: CompiledStory): List<Diagnostic>
 ```
 
-### Verb Validator
+### Namespace Validator
+Validates that verb calls and attributes are not ambiguous and resolve to existing symbols.
+
+```
+NamespaceValidator:
+  priority: int
+  registry: HandlerRegistry
+
+  validate(story: CompiledStory): List<Diagnostic>
+    # 1. Iterate all verb calls
+    # 2. Suffix Match each call.name against verbRegistry
+    # 3. If >1 match: FATAL "namespace_ambiguity"
+    # 4. If 0 match: FATAL "unknown_verb"
+    
+    # 5. Iterate all attributes in calls
+    # 6. Suffix Match each attribute.name against AttributeRegistry
+    # 7. If >1 match: FATAL "namespace_ambiguity"
+    # 8. If 0 match: Warning? or FATAL "unknown_attribute" (strict)
+
+    # Optimization: 
+    # The validation result for specific suffixes can be cached globally 
+    # until the verb/attribute registry changes.
+```
+
+### Verb Validator (Specific)
 
 Validates compiled verb calls.
 
@@ -230,10 +254,11 @@ ExecutionResult:
 │            VALIDATION PHASE                  │
 │  1. For each story validator:                │
 │     - validate(story)                        │
-│  2. For each compiled verb call:             │
+│  2. Run NamespaceValidator (Ambiguity Check) │
+│  3. For each compiled verb call:             │
 │     - Find verb validator                    │
 │     - validate(call, story)                  │
-│  3. If fatal diagnostics: abort              │
+│  4. If fatal diagnostics: abort              │
 └──────────────────────────────────────────────┘
        │
        ▼
@@ -341,10 +366,11 @@ Context.run():
         
         call = statement as CompiledVerbCall
         
-        # Find verb driver
-        driverKey = call.namespace ? 
-            call.namespace + "." + call.name : call.name
-        driver = runtime.verbDrivers.get(driverKey)
+        # Find verb driver (Suffix Matching)
+        # Note: Validator guarantees uniqueness or existence roughly, 
+        # but runtime must still resolve the specific driver.
+        suffix = call.namespace ? call.namespace + "." + call.name : call.name
+        driver = runtime.verbDrivers.resolveBySuffix(suffix)
         
         if driver == null:
             # Unknown verb - treat as no-op
