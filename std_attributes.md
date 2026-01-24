@@ -1,6 +1,10 @@
 # Standard Attributes
 
-Standard attributes are common attribute definitions that runtimes should adapt to.
+Standard attributes are data decorations that serve two primary purposes:
+1.  **Common Parameters**: Shared parameters across arbitrary verbs (e.g., `[Scope]`, `[Delay]`).
+2.  **Metaprogramming Signals**: Signals for handlers to alter behaviors.
+
+While their syntax looks like named parameters, they are structurally distinct (attached to the verb call itself, not the verb's arguments) and always optional at the language level (though specific verbs or runtimes may require them).
 
 ## Scope
 

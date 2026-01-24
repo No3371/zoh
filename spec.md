@@ -193,9 +193,9 @@ comments
 /verb p_name1:p_v1, p2, p_name3:p_v3, p4; :: Named mixed with unnamed
 /capture "return_into_var";
 -> *return_into_var;                      :: Syntactic sugar of /capture "return_into_var";
-/verb; -> *return_into_var;               :: Valid one liner chaining /capture after /verbs
 /verb;                                    :: Return value is not required.
    /verb;                                 :: Verbs don't have to start at the beginning of a line
+/verb; -> *return_into_var;               :: Therefore this is valid one liner combining /capture after /verb to declutter scripts
 
 /verb [attr1] [attr2];                    :: Spaces around and between attributes are required
 /verb p1,p2,p3;                           :: Spaces between parameters are optional
@@ -1878,24 +1878,30 @@ Verbs may have syntactic sugar forms, but these only exist in the source code an
 
 A runtime should be designed in a modular fashion that it can be extended with the following:
 
-#### Pre-processor
+### Pre-processor
 Pre-processors are called before the runtime parser and can take action against the raw story data.
 They are provided with the story name, the metadata entries and the story body text, and can temper them in anyway.
 Pre-processors can invalidate the story by returning a fatal diagnostic.
 
-#### Compiler
+#### Standard Preprocessors
+- TODO
+
+### Compiler
 Compilers are called to verify and convert the story to runtime data structures.
 Compilers work by repeatedly asking if any registered compiler is interested in the current node. An interested compiler may read ahead and perform its logics to generate runtime data structures or modify already generated ones, then the next compiler is asked, and so on, until no compiler is interested in the current node. The runtime should move ahead and repeat the process until the end of the story. Noted that once the runtime moves on, all compiled elements up to the point should be finalized.
 In other words, because compilers are called in order of priority, compilers with lower priority can modify results from compilers with higher priority.
 Compiled elements should track their source line number and story body line number in the story, the difference is story body line number is based on actual parsed story body.
 
-#### Story Validator
+#### Standard Compilers
+- TODO
+
+### Story Validator
 Story validators are called before running the story. Any story validator can output diagnostics and prevent the story from running.
 
-#### Verb Validator
+### Verb Validator
 Verb validators are called by a standard story validator to verify the compiled verb calls are valid after compilers are done.
 
-#### Verb Driver
+### Verb Driver
 Verb drivers are called by the runtime/context to perform the verb call at runtime.
 
 ## Handler Priority

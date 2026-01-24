@@ -37,6 +37,36 @@ All drivers share a common pattern:
 
 ---
 
+## Usage & Syntax
+
+### Statement Chaining
+
+The `->` capture syntax is a standalone statement, but it is idiomatic to chain it on the same line as the verb call for cleaner code.
+
+```zoh
+/rand 1, 10; -> *result;  :: Idiomatic "one-liner" chaining
+```
+
+### Block Form
+
+Verbs can optionally use a block form `/verb/ ... /;` where parameters are separated by whitespace instead of commas. This is common for control flow verbs or when passing long strings.
+
+```zoh
+/sequence/
+    /verb1;
+    /verb2;
+/;
+```
+
+### Short Forms (Sugar)
+ 
+ The parser provides shorthand syntax for common verbs. These are transformed into standard verb calls at parse time. See [02_parser.md](./02_parser.md) for full transformation rules.
+ 
+ *   `` /`expr` `` → `/evaluate`
+ *   `/"str"` → `/interpolate`
+ 
+ ---
+
 ## Core.Set
 
 **Purpose**: Declare or update a variable.

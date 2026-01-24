@@ -85,6 +85,28 @@ SpecialForm:
 
 ---
 
+## Usage & Sugar
+
+While the grammar above defines the internal structure of expressions, in practice they are often used via imperative sugar.
+
+### Imperative Evaluation
+
+| Sugar | Desugars To |
+|-------|-------------|
+| `` /`expr`; `` | `/evaluate `expr`;` |
+| `` /`expr` [attr]; `` | `/evaluate [attr] `expr`;` |
+
+### Expressions as Arguments
+
+Expressions can be passed directly as arguments to verbs. They are passed as `ExpressionValue` types (data), which the verb driver can then decide to evaluate or hold onto (e.g., for lazy evaluation).
+
+```zoh
+/if `*a > 5`, /print "Big";;  :: *a > 5 is passed as ExpressionValue
+/set [resolve] *x, `1 + 1`;   :: 1 + 1 is evaluated before setting
+```
+
+---
+
 ## Implementation Steps
 
 ### Step 1: Expression Lexer
