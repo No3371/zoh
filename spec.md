@@ -187,19 +187,18 @@ comments
 /verb;
 /verb [attribute];
 /verb [attribute_with_value:attr_value] [even_more_attr];
-/verb p_name:p_v;             :: Named parameters
-/verb p1, p2, p3;             :: Unnamed parameters
-/verb p_name:p_v, p1, p2, p3; :: Named before unnamed
-/verb [attribute1] [attribute_with_value:attr_value] [even_more_attr] param_name1:param_value1, param_name2:param_value2..., unnamed_param1, unnamed_param2...;
+/verb p_name:p_v;                         :: Named parameters
+/verb p1, p2, p3;                         :: Unnamed parameters
+/verb p_name:p_v, p1, p2, p3;             :: Named before unnamed
+/verb p_name1:p_v1, p2, p_name3:p_v3, p4; :: Named mixed with unnamed
 /capture "return_into_var";
--> *return_into_var;          :: Syntactic sugar of /capture "return_into_var";
-/verb; -> *return_into_var;
-/verb;                        :: Return value is not required.
-   /verb;                     :: Verbs don't have to start at the beginning of a line
+-> *return_into_var;                      :: Syntactic sugar of /capture "return_into_var";
+/verb; -> *return_into_var;               :: Valid one liner chaining /capture after /verbs
+/verb;                                    :: Return value is not required.
+   /verb;                                 :: Verbs don't have to start at the beginning of a line
 
-/verb [attr1] [attr2];        :: Spaces around and between attributes are required
-/verb p1,p2,p3;               :: Spaces between parameters are optional
-/verb;->*return_into_var;     :: Spaces around -> are optional
+/verb [attr1] [attr2];                    :: Spaces around and between attributes are required
+/verb p1,p2,p3;                           :: Spaces between parameters are optional
 
 :: Valid multi-line verb calls
 :: Newlines do not break verb calls
@@ -214,11 +213,18 @@ p3;
 p1,p2,p3;
 -> *return_into_var
 ; 
+
 /verb [attribute1] [attribute_with_value:attr_value] 
 [even_more_attr] param_name1:param_value1,
 param_name2:param_value2,
 unnamed_param1, unnamed_param2...;
 -> *return_into_var;
+
+:: Alternative block form verb call allows delimiting parameters with spaces/newlines
+/verb/
+	p1
+	p2
+/;
 
 #flag flag_name off
 ```
@@ -385,23 +391,23 @@ All values can be converted to strings. This specification ensures consistent cr
 - Map key order is implementation-defined
 
 ## Attributes
-Inspired by C#, attributes are reusable components that can be marked on verb calls.
+Inspired by C#, attributes are reusable decorators for verb calls.
 
-Attributes are denoted as `[name:value]`, or `[name]` if the value is not required. In the latter case, the value is a `nothing`. All types are allowed for attribute values. Attribute names are case-insensitive, can not start with digits and can not contain whitespaces or reserved characters.
+Attributes are denoted as `[name:value]`, or `[name]` if the value is not required. In the latter case, the value is a `nothing`. All types are allowed for attribute values.
 
-Attributes are ALWAYS OPTIONAL and common parameters shared by indefinite verbs that map to common concepts that could be useful in various scenarios.
+Attribute names are case-insensitive, can not start with digits and can not contain whitespaces or reserved characters. Multiple attributes with the same name are allowed and are left to verb drivers to handle.
 
-Attributes are DATA. Multiple attributes with the same name are allowed and are left to verb drivers to handle.
+Attributes are DATA, and ALWAYS OPTIONAL. While looking similar to named parameters, attributes have 2 purposes:
+- Common concept as parameters shared by arbitrary verbs
+- Marking individual verb calls for [handlers](#handlers) to achieve metaprogramming
 
-For example, Fading is a concept useful to various verbs, but are not a necessary parameter for such verbs. It suits well as an attribute.
+For example, Fading is a concept useful to many verbs that start or end something, such as showing images, playing musics, etc., but is not a necessary parameter. It's a valid attribute candidate. 
 
 ```
 *Jack <- "char_jack";
 /converse [by: *Jack] "Hello, world!"; :: The /converse driver can see a [By] attribute whose value is a reference named "Jack" therefore can resolve it to "char_jack".
 *var [required]; :: this attribute does not have value
 ```
-
-Attributes are data. It's entirely up to implementation to perform action according to attribute it encounters.
 
 # Verb
 Verbs are the foundational building blocks of the language, which are the instructions to the runtime to perform actions.
@@ -613,6 +619,7 @@ A nothing.
 -> *list[*index];
 -> [attribute] *map["key"];
 -> *data["users"][0]["name"];
+->*var_name; :: Space is not enforced
 ```
 
 ### Core.Diagnose

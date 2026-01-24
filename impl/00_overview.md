@@ -125,17 +125,18 @@ graph TD
 ### Verb Call Syntax
 
 ```
-/verb [attr1:value] [attr2] param1, param2...; -> *result;
+/verb [attr1:value] [attr2] param1, param2...;
 ```
 
 - Verbs start with `/`
 - Attributes in `[brackets]` (optional, reusable)
 - Parameters comma-separated
 - Terminated with `;`
-- Return via `-> *var;` sugar or `/capture`
 
-### Block Form
+### Alternative: Block Form
 
+- Parameters demilited with whitespaces/newlines
+- Terminated with `/;`
 ```
 /verb/
     [attr1] [attr2]
@@ -150,6 +151,7 @@ graph TD
 *variable           :: Reference to variable
 *list[0]            :: Index into list
 *map["key"]         :: Key in map
+*map["key"][0]      :: Index into list in map
 <channel>           :: Channel reference
 ```
 
@@ -158,8 +160,8 @@ graph TD
 ```
 `*a + *b`           :: Arithmetic
 `*x > 0 && *y < 10` :: Logical
-$`*a + 1`           :: Evaluate (sugar for /evaluate)
-$"Hello, ${*name}!" :: Interpolate (sugar for /interpolate)
+/`*a + 1`           :: Evaluate (sugar for /evaluate)
+/"Hello, ${*name}!" :: Interpolate (sugar for /interpolate)
 ```
 
 ### Labels & Navigation
