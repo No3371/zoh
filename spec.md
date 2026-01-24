@@ -1841,21 +1841,23 @@ Embedding preprocessors should run before macro expansion.
 
 ```
 
-## Label
+## Checkpoint
 
-A label, denoted as `@label`, is a named node in a story, for `/jump` and `/fork` verbs to work.
+A checkpoint, denoted as `@checkpoint`, is a named node in a stoty, that enables `/jump`, `/fork` and `/call`.
 
-Labels must be in its own line and can only be denoted at root level.
+Checkpoints must be in its own line and must be denoted at root level.
 
-Label names are case-insensitive, can not contain whitespace or reserved characters.
+Checkpoint names are case-insensitive, can not caontain whitespace or reserved characters.
 
-Duplicate labels are not allowed and the runtime should emit a compile error.
+Checkpoint names must be unique within each story.
+
+A checkpoint can be suffixed with variable references. All referenced variables must not be resolved to `nothing` when the context is about to execute across or jump/fork/call to the checkpoint.
 
 ### Examples
 ```
-@label
-/verb;
+@checkpoint *var1 *var2 *var3
 ```
+
 # Runtime Design
 
 Runtime should be layered in the following manner: Runtime, Context, Story.
