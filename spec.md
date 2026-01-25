@@ -1,6 +1,6 @@
 # ZOH
 
-ZOH is an embedded scripting language built for storytelling but authored and run like a general programming language.
+ZOH (咒) is an embedded scripting language built for storytelling but authored and run like a general programming language.
 
 ## Everything is a Verb
 
