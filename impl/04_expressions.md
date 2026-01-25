@@ -24,7 +24,7 @@ literal         := string | integer | double | boolean | nothing
 reference       := '*' identifier ( '[' index ']' )*
 special_form    := interpolate | count | conditional | any | indexed | roll | wroll
 
-interpolate     := '${' reference '}'                      # /interpolate (Vars only)
+interpolate     := '$' string | '$' reference              # /interpolate ($"str" or $*ref)
 count           := '$#(' reference ')'                     # /count
 conditional     := '$?(' expr '?' expr ':' expr ')'        # /if ternary
 any             := '$?(' option_list ')'                   # /first non-nothing  
@@ -123,7 +123,7 @@ ExpressionLexer:
   #              PLUS, MINUS, STAR, SLASH, PERCENT,
   #              EQ_EQ, BANG_EQ, LT, GT, LT_EQ, GT_EQ,
   #              AND_AND, OR_OR, BANG, PIPE, COLON, QUESTION,
-  #              DOLLAR_BRACE, DOLLAR_PAREN, DOLLAR_HASH_PAREN, DOLLAR_QUESTION_PAREN,
+  #              DOLLAR_STRING, DOLLAR_REF, DOLLAR_PAREN, DOLLAR_HASH_PAREN, DOLLAR_QUESTION_PAREN,
   #              PERCENT_RBRACKET (for [%])
 ```
 
@@ -211,8 +211,10 @@ ExpressionParser:
       expr = parse()
       consume(RPAREN, "Expected ')' after expression")
       return GroupExpr(expr)
-    if match(DOLLAR_BRACE):
-      return parseInterpolate()
+    if match(DOLLAR_STRING):
+      return InterpolateForm(previous().literal) 
+    if match(DOLLAR_REF):
+      return InterpolateForm(previous().reference)
     if match(DOLLAR_PAREN):
       return parseOptionList()
     if match(DOLLAR_HASH_PAREN):
@@ -226,12 +228,6 @@ ExpressionParser:
 ### Step 3: Special Form Parsing
 
 ```
-parseInterpolate(): ExprNode
-    # ${ *var }
-    ref = parseReference()
-    consume(RBRACE)
-    return InterpolateForm(ref)
-
 parseOptionList(): ExprNode
     # $( a | b )
     options = [parse()]
@@ -319,10 +315,13 @@ ExpressionEvaluator:
         return evaluate(expr.inner)
       
       InterpolateForm:
-        value = evaluate(expr.ref)
-        return value   # Just return the value, do NOT stringify here? 
-                       # Or return value to be stringified by caller?
-                       # If expr is "${*x}", it evaluates to val(*x).
+        # expr.value is either a string literal or a reference
+        value = evaluate(expr.value) 
+        return value   # The verb layer handles stringification/interpolation if needed, 
+                       # or it is done here if the node implies immediate interpolation.
+                       # For $"...", it's a string that needs interpolation.
+                       # For $*..., it's a variable reference. Its value should be treated as a 
+                       # template string and interpolated ONCE
       
       CountForm:
         value = evaluate(expr.ref)
@@ -461,7 +460,8 @@ applyBinaryOp(op: string, left: any, right: any): any
 - [ ] Short-circuit evaluation
 
 ### Special Forms
-- [ ] Interpolate Invocation: `$("string")` (e.g. `$("Hello ${*name}")`) ``
+- [ ] Interpolate String: `$"Hello ${*name}"`
+- [ ] Interpolate Var: `$*var` -> value treated as template and interpolated
 - [ ] Count: `` `$#(*list)` ``
 - [ ] Conditional: `` `$?(*cond? *a : *b)` ``
 - [ ] Any: `` `$?(*a|*b|*c)` `` → first non-nothing

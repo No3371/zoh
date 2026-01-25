@@ -696,10 +696,7 @@ Diagnostics from the `cache` verb (if provided) should be appended. Therefore, i
 
 ### Core.Interpolate
 
-An interpolate verb interpolates a string ONCE. Any value enclosed with un-escaped brackets `{}` is replaced with the value of the variable.
-
-#### Aliases
-- `/itpl`
+An interpolate verb interpolates a string ONCE. Any value enclosed with un-escaped brackets `{}` is replaced with the value of the variable. Undefined variables are treated as `nothing` (stringifying to `?` or `fallback`), instead of raising a fatal error.
 
 For exmaple, `"Hello, ${*name}!"` should be interpolated to "Hello, John!" if the runtime/context resolves `*name` to a string "John". (Without `/Interpolate`, It would otherwise requires `` /eval `"Hello, " + *name + "!` ``) 
 
@@ -715,12 +712,17 @@ Interpolation should also support:
 - calling `/roll` for `${*var1|*var2...|*varN}[%]` with the options as parameters.
 - calling `/wroll` for `${*var1:<w>|*var2:<w>...|*varN:<w>}[%]` with the options as parameters and `w` as the weights.
 
+#### Aliases
+- `/itpl`
+
+#### Named Parameters
+- `fallback`: Optional. The string to use when a variable resolves to `nothing` (explicitly or undefined). Defaults to `?`.
+
 #### Parameters
 - `str`: the string to interpolate. Accept `any`. In case of `*reference`, the value of the reference is used. In case of types other than `string`, the parameter is simply formatted to string. `` `expr` `` is not evaluated.
 
 #### Diagnostics
 - Fatal: `invalid_syntax`: Malformed interpolation syntax (unclosed `${`, invalid escape sequence).
-- Fatal: `undefined_var`: A referenced variable in the interpolation does not exist.
 
 #### Returns
 The interpolated string.
@@ -729,6 +731,9 @@ The interpolated string.
 ```
 *name <- "John";
 /"Hello ${*name}"; :: returns "Hello, John!"
+
+/"Hello ${*missing}"; :: returns "Hello ?" (assuming *missing is undefined)
+/interpolate "Hello ${*missing}", fallback: "Stranger"; :: returns "Hello Stranger"
 
 *format <- "Hello, ${*format}!";
 /interpolate *format; :: returns "Hello, Hello, {*format}!!"
@@ -746,7 +751,7 @@ C# style string interpolation:
 An eval verb evaluates a expression ONCE and returns the result.
 
 On top of arithmetic operation, it should support this special syntax:
-- calling `/interpolate` for `$(string)`. For example: `$("Hello, ${*name}!")` or `$(*string_var)`.
+- calling `/interpolate` ONCE for `$"string"` or `$*var`. For example: `$"Hello, ${*name}!"`.
 - calling `/count` for `$#(*var)`.
 - calling `/if` for `$?(*var1? *var2 : *var3)` with `var1` as the condition, `var2` as the true case value, and `var3` as the else case value.
 - calling `/any` for `$?(*var1|*var2...|*varN)`.
@@ -791,6 +796,18 @@ The result of the expression, type depends on the expression.
 /`*var+1`;
 <- *var[`*index+1`];; :: /get *var[`*index+1`];;
 ```
+
+#### Interactions & Edge Cases
+
+- **Operator Precedence**: `$"..."` and `$*...` are Primary Expressions (highest precedence).
+  - `1 + $*num` is equivalent to `1 + (*num evaluated as template string and interpolated)`.
+- **Interpolation Semantics**: 
+  - `$"string"`: The string literal is interpolated.
+  - `$*var`: The value of `*var` is resolved, treated as a string template, and interpolated.
+    - Example: If `*t <- "Hello ${*n}"` and `*n <- "World"`, then `$*t` -> `"Hello World"`.
+- **String Escaping**: `$"..."` follows standard ZOH string escaping.
+  - `$"Value: \"\${*var}\""` -> `Value: "ContentsOfVar"`
+  - `$"Literal: \\{*var}"` -> `Literal: {*var}`
 
 ### Store.Write
 

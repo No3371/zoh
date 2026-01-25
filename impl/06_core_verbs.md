@@ -322,6 +322,8 @@ DiagnoseDriver.execute(call, context):
 ```
 InterpolateDriver.execute(call, context):
     input = resolve(call.params[0], context)
+    fallback = getNamedParam(call, "fallback", "?")
+
     if input is not StringValue:
         return ok(StringValue(input.toString()))
     
@@ -335,7 +337,7 @@ InterpolateDriver.execute(call, context):
             i += 2
         elif str[i] == '$' and i+1 < str.length:
             i++
-            interpolated, consumed = parseInterpolation(str, i, context)
+            interpolated, consumed = parseInterpolation(str, i, context, fallback)
             result.append(interpolated)
             i += consumed
         else:
@@ -344,7 +346,7 @@ InterpolateDriver.execute(call, context):
     
     return ok(StringValue(result.toString()))
 
-parseInterpolation(str, start, context): (string, int)
+parseInterpolation(str, start, context, fallback): (string, int)
     # Handle special prefixes
     if str[start] == '#':
         # Count form: $#{*var}
@@ -353,14 +355,14 @@ parseInterpolation(str, start, context): (string, int)
         # Conditional or any form
         return parseConditionalInterpolation(str, start+1, context)
     if str[start] == '{':
-        return parseBasicInterpolation(str, start, context)
+        return parseBasicInterpolation(str, start, context, fallback)
     
     return fatal("invalid_syntax", "Invalid interpolation")
 
-parseBasicInterpolation(str, start, context): (string, int)
-    # Find matching }
-    # Parse contents, handle |, :, [...] for select/roll
-    # Resolve and format
+parseBasicInterpolation(str, start, context, fallback): (string, int)
+    # Parse variable/path inside ${...}
+    # Resolve strictly for the path, BUT if the variable/path is missing/undefined:
+    # return fallback string instead of error.
     ...
 ```
 
