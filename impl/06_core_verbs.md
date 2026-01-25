@@ -332,8 +332,8 @@ InterpolateDriver.execute(call, context):
     i = 0
     
     while i < str.length:
-        if str[i] == '\\' and i+1 < str.length and str[i+1] in ['{', '}']:
-            result.append(str[i+1])
+        if str[i] == '\\' and i+1 < str.length and str[i+1] == '$':
+            result.append('$')
             i += 2
         elif str[i] == '$' and i+1 < str.length:
             i++

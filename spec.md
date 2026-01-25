@@ -704,7 +704,7 @@ The brackets can be escaped with `\{` and `\}`.
 
 Interpolation should also support:
 - Formatting: C# composite format string style `${var[,width][:formatString]}`.
-- Unrolling: `{*var..."delim"}` to expand `*[list]` and `*{map}` into `{element}{delim}{element}...` where `element`s are the list elements or map k:v pairs.
+- Unrolling: `${*var..."delim"}` to expand `*[list]` and `*{map}` into `{element}{delim}{element}...` where `element`s are the list elements or map k:v pairs.
 - calling `/count` for `$#{*var}`.
 - calling `/if` for `$?{*var1? *var2 : *var3}` with `var1` as the condition, `var2` as the true case value, and `var3` as the else case value.
 - calling `/any` for `$?{*var1|*var2...|*varN}`.
