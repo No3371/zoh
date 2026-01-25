@@ -696,21 +696,25 @@ Diagnostics from the `cache` verb (if provided) should be appended. Therefore, i
 
 ### Core.Interpolate
 
-An interpolate verb interpolates a string ONCE. Any value enclosed with un-escaped brackets `{}` is replaced with the value of the variable. Undefined variables are treated as `nothing` (stringifying to `?` or `fallback`), instead of raising a fatal error.
+An interpolate verb interpolates string with `${*var}` syntax ONCE for dynamic text generation. Undefined variables are treated as `nothing` (stringifying to `?` or provided `fallback` parameter).
 
-For exmaple, `"Hello, ${*name}!"` should be interpolated to "Hello, John!" if the runtime/context resolves `*name` to a string "John". (Without `/Interpolate`, It would otherwise requires `` /eval `"Hello, " + *name + "!` ``) 
-
-The brackets can be escaped with `\{` and `\}`.
+For exmaple, `"Hello, ${*name}!"` should be interpolated to "Hello, John!" if `*name` is resolved to a string "John". (Without `/Interpolate`, It would otherwise requires `` /eval `"Hello, " + *name + "!` ``) 
 
 Interpolation should also support:
-- Formatting: C# composite format string style `${var[,width][:formatString]}`.
+- Formatting: C# composite format parity `${var[,width][:formatString]}`.
+	- Examples: `/itpl "|${"Left",-7}|${"Right",7}|"` is `"|Left   |  Right|`. `/itpl "My balance is ${*balance,8:N1}."` is `"My balance is     100.0"`
 - Unrolling: `${*var..."delim"}` to expand `*[list]` and `*{map}` into `{element}{delim}{element}...` where `element`s are the list elements or map k:v pairs.
-- calling `/count` for `$#{*var}`.
-- calling `/if` for `$?{*var1? *var2 : *var3}` with `var1` as the condition, `var2` as the true case value, and `var3` as the else case value.
-- calling `/any` for `$?{*var1|*var2...|*varN}`.
-- calling `/get` for `${*var1|*var2...|*varN}[#]` with the options as a list parameter and `#` as the index. For example: `${1|2|3}[*i]`. Optionally, the `#` can be prefixed with `!` for a modulo operation to wrap around the cases.
-- calling `/roll` for `${*var1|*var2...|*varN}[%]` with the options as parameters.
-- calling `/wroll` for `${*var1:<w>|*var2:<w>...|*varN:<w>}[%]` with the options as parameters and `w` as the weights.
+	- Example: `/itpl "I have ${*inv...", "}."` is `"I have potion, sword, pie."`
+- Parity of `/count` for `$#{*var}`.
+	- Example: `/itpl "I have $#{*inv_size} items."` is `"I have 3 items."`
+- Parity of `/if` for `$?{*cond? *true_case | *false_case}`.
+	- Example: `/itpl "You $?{*win? "win"|"lose"}."` is `"You win."`
+- Parity of `/first` for `$?{*var1|*var2...|*varN}`.
+	- Example: `/itpl "I have $?{?|"something"}".` is `"I have something."`
+- Picking one option for `${*var1|*var2...|*varN}[#]` with the options as a list parameter and `#` as the index. For example: `${1|2|3}[*i]`. Optionally, the `#` can be prefixed with `!` for a modulo operation to wrap around the cases.
+	- Examples: `/itpl "The ${1|2|3}[1]nd."` is `"The 2nd."`. `/itpl "The ${1|2|3}[!5]rd."` is `"The 3rd."`. 
+- Parity of  `/roll` for `${*var1|*var2...|*varN}[%]` with the options as parameters.
+- Parity of  `/wroll` for `${*var1:<w>|*var2:<w>...|*varN:<w>}[%]` with the options as parameters and `w` as the weights.
 
 #### Aliases
 - `/itpl`
@@ -751,13 +755,13 @@ C# style string interpolation:
 An eval verb evaluates a expression ONCE and returns the result.
 
 On top of arithmetic operation, it should support this special syntax:
-- calling `/interpolate` ONCE for `$"string"` or `$*var`. For example: `$"Hello, ${*name}!"`.
-- calling `/count` for `$#(*var)`.
-- calling `/if` for `$?(*var1? *var2 : *var3)` with `var1` as the condition, `var2` as the true case value, and `var3` as the else case value.
-- calling `/any` for `$?(*var1|*var2...|*varN)`.
-- calling `/get` for `$(*var1|*var2...|*varN)[#]` with the options as a list parameter and `#` as the index. For example: `$(1|2|3)[*i]`. Optionally, the `#` can be prefixed with `!` for a modulo operation to wrap around the cases.
-- calling `/roll` for `$(*var1|*var2...|*varN)[%]` with the options as parameters.
-- calling `/wroll` for `$(*var1:<w>|*var2:<w>...|*varN:<w>)[%]` with the options as parameters and `w` as the weights.
+- Parity of `/interpolate` ONCE for `$"string"` or `$*var`. For example: `$"Hello, ${*name}!"`.
+- Parity of `/count` for `$#(*var)`.
+- Parity of `/if` for `$?(*var1? *var2 : *var3)` with `var1` as the condition, `var2` as the true case value, and `var3` as the else case value.
+- Parity of `/first` for `$?(*var1|*var2...|*varN)`.
+- Picking one option for `$(*var1|*var2...|*varN)[#]` with the options as a list parameter and `#` as the index. For example: `$(1|2|3)[*i]`. Optionally, the `#` can be prefixed with `!` for a modulo operation to wrap around the cases.
+- Parity of `/roll` for `$(*var1|*var2...|*varN)[%]` with the options as parameters.
+- Parity of `/wroll` for `$(*var1:<w>|*var2:<w>...|*varN:<w>)[%]` with the options as parameters and `w` as the weights.
 
 Verb calls are not supported.
 

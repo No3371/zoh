@@ -26,7 +26,7 @@ special_form    := interpolate | count | conditional | any | indexed | roll | wr
 
 interpolate     := '$' string | '$' reference              # /interpolate ($"str" or $*ref)
 count           := '$#(' reference ')'                     # /count
-conditional     := '$?(' expr '?' expr ':' expr ')'        # /if ternary
+conditional     := '$?(' expr '?' expr '|' expr ')'        # /if ternary
 any             := '$?(' option_list ')'                   # /first non-nothing  
 indexed         := '$(' option_list ')[' index ']'         # /get by index
 roll            := '$(' option_list ')[%]'                 # /roll random

@@ -312,7 +312,7 @@ DiagnoseDriver.execute(call, context):
 | `${*var:format}` | Format with specifier |
 | `${*var..."\|"}` | Unroll list/map with delimiter |
 | `$#{*var}` | Insert count |
-| `$?{*a? *b : *c}` | Conditional |
+| `$?{*a? *b | *c}` | Conditional |
 | `$?{*a\|*b\|*c}` | First non-nothing |
 | `${a\|b\|c}[#]` | Index select |
 | `${a\|b\|c}[%]` | Random select |
