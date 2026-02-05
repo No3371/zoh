@@ -17,7 +17,8 @@ equality_expr   := relational_expr ( ( '==' | '!=' ) relational_expr )*
 relational_expr := additive_expr ( ( '<' | '>' | '<=' | '>=' ) additive_expr )*
 additive_expr   := mult_expr ( ( '+' | '-' ) mult_expr )*
 mult_expr       := unary_expr ( ( '*' | '/' | '%' ) unary_expr )*
-unary_expr      := ( '!' | '-' ) unary_expr | primary_expr
+unary_expr      := ( '!' | '-' ) unary_expr | power_expr
+power_expr      := primary_expr ( '**' unary_expr )*
 primary_expr    := literal | reference | '(' expression ')' | special_form
 
 literal         := string | integer | double | boolean | nothing
@@ -52,7 +53,7 @@ ExprNode:
   | SpecialExpr    { form: SpecialForm, ... }
 
 BinaryOp: 
-  '+' | '-' | '*' | '/' | '%' 
+  '+' | '-' | '*' | '/' | '%' | '**'
   | '==' | '!=' | '<' | '>' | '<=' | '>=' 
   | '&&' | '||'
 
@@ -75,13 +76,14 @@ SpecialForm:
 
 | Precedence | Operators | Associativity |
 |------------|-----------|---------------|
-| 1 (highest) | `!` `-` (unary) | Right |
-| 2 | `*` `/` `%` | Left |
-| 3 | `+` `-` | Left |
-| 4 | `<` `>` `<=` `>=` | Left |
-| 5 | `==` `!=` | Left |
-| 6 | `&&` | Left |
-| 7 (lowest) | `\|\|` | Left |
+| 1 (highest) | `**` | Right |
+| 2 | `!` `-` (unary) | Right |
+| 3 | `*` `/` `%` | Left |
+| 4 | `+` `-` | Left |
+| 5 | `<` `>` `<=` `>=` | Left |
+| 6 | `==` `!=` | Left |
+| 7 | `&&` | Left |
+| 8 (lowest) | `||` | Left |
 
 ---
 
@@ -378,6 +380,8 @@ applyBinaryOp(op: string, left: any, right: any): any
         return left / right
       '%':
         return left % right
+      '**':
+        return pow(left, right)
       
       # Comparison
       '==':
@@ -416,6 +420,8 @@ applyBinaryOp(op: string, left: any, right: any): any
 | `+` | string | any | string (concat) |
 | `+` | any | string | string (concat) |
 | `+` | list | list | list (concat) |
+| `**` | int | int (>=0) | int |
+| `**` | double | double | double |
 | `-,*,/,%` | int | int | int |
 | `-,*,/` | any | any | double |
 | `/` | int | int | int (floor) |
