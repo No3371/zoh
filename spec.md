@@ -1839,6 +1839,7 @@ Macros are defined using the pipe-delimited syntax `|%NAME%|...|%NAME%|`.
 
 ### Expansion
 ```zoh
+|%MACRO_NAME|%|
 |%MACRO_NAME|arg0|arg1|...|%|
 ```
 
