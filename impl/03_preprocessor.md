@@ -95,11 +95,11 @@ runtime.registerPreprocessor(MyCustomSyntax(), priority: 50)
 ### Macro Expansion
 
 ```zoh
-|%MACRO_NAME%|
+|%MACRO_NAME|%|
 |%MACRO_NAME|arg0|arg1...|%|
 ```
 
-- `|%MACRO_NAME%|` expands with no arguments
+- `|%MACRO_NAME%|%|` expands with no arguments
 - `|%MACRO_NAME|...|%|` expands with positional arguments
 - Positional placeholders replace arguments
 - Unused arguments are ignored; missing arguments for placeholders result in replacement with `?` (nothing)
