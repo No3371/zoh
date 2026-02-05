@@ -1826,41 +1826,32 @@ During each embed resolution, each file can only be embedded once.
 
 ## Macro
 
-The language supports story body templating with macro.
+The language supports story body templating with macros.
 
-Denoted as `#macro` and `#expand` in their own lines, macros are one of the rare exceptions in the language that are non-verbs that are first-class citizens as verbs.
+Macros are defined using the pipe-delimited syntax `|%NAME%|...|%NAME%|`.
 
-A macro definition starts `#macro MACRO_NAME param1, param2...;`, then any number of lines, finally terminated with a line of `#macro;`.
-
-The implementation should replace all `|#placeholder#|` with provided named string with matching name, in a standard pre-processor.
-
-Default body for placeholders can be defined by additional `|` in the following format: `|#placeholder|default_body#|`.
-
-`|` inside macro body can be escaped with `\|`. `\` can be escaped with `\\`.
-
-Macro is local, expanding macros defined in other stories will not work.
-
-Embedding preprocessors should run before macro expansion.
-
-
+### Definition
+```zoh
+|%MACRO_NAME%|
+<body with placeholders>
+|%MACRO_NAME%|
 ```
-#macro MACRO_NAME pname1, pname2, pname3;
-/converse "Here we have |#pname1|Jack#|, |#pname2|John#| and |#pname3|Alice#|!";
-#macro;
 
-#expand MACRO_NAME;
-#expand MACRO_NAME p_name1:p_value1, p_name2:p_value2...;
-#expand MACRO_NAME |#p_name1|p_value1#| |#p_name2|p_value2#|;
-
-#macro SYSTEM_OUTPUT placeholder;
-/converse [By: *System] |#placeholder#|
-#macro;
-
-#expand SYSTEM_OUTPUT placeholder:"Hello, world!";
-:: becomes
-/converse [By: *System] "Hello, world!";
-
+### Expansion
+```zoh
+|%MACRO_NAME|arg0|arg1|...|%|
 ```
+
+### Placeholders
+
+| Pattern | Meaning |
+|---------|---------|
+| `|%N|` | Argument at position N (0-indexed) |
+| `|%|` | Next argument (auto-increment) |
+| `|%+N|` | Relative: current + N |
+| `|%-N|` | Relative: current - N |
+| `\|` | Escaped pipe (literal) |
+
 
 ## Checkpoint
 
