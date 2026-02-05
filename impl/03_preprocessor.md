@@ -119,11 +119,49 @@ Syntactic sugar for `/flag "flag_name", value;`
 
 ### Step 1: File Resolution
 
-(No changes to file resolution logic)
+```
+FileResolver:
+  basePath: string              # Path of currently processing file
+  embeddedFiles: Set<string>    # Already embedded (for cycle detection)
+  
+  resolve(path: string): string
+    if isAbsolute(path):
+        return normalizePath(path)
+    return normalizePath(join(basePath, path))
+  
+  read(path: string): string
+    resolved = resolve(path)
+    if resolved in embeddedFiles:
+        error("Circular embed detected: " + resolved)
+    return readFile(resolved)
+```
 
 ### Step 2: Embed Processing
 
-(No changes to embed processing logic)
+```
+processEmbeds(source: string, sourceFile: string, embedded: Set<string>): string
+    result = StringBuilder()
+    lines = source.split('\n')
+    
+    for line in lines:
+        if matches(line, /^#embed\s+"(.+)"\s*;/):
+            path = extractPath(line)
+            absPath = resolve(path, sourceFile)
+            
+            if absPath in embedded:
+                error("Circular embed: " + absPath)
+            
+            embedded.add(absPath)
+            content = readFile(absPath)
+            
+            # Recursively process embeds in included file
+            content = processEmbeds(content, absPath, embedded)
+            result.append(content)
+        else:
+            result.append(line + '\n')
+    
+    return result.toString()
+```
 
 ### Step 3: Macro Collection
 
@@ -200,7 +238,25 @@ expandMacroBody(body: string, args: List<string>): string
 
 ### Step 5: Syntactic Sugar Transformation
 
-(No changes to sugar transformation logic)
+Transform sugar forms to standard verb calls at text level (or defer to parser):
+
+```
+transformSugar(source: string): string
+    # These can also be handled by parser, but text-level is simpler
+    
+    # Set sugar: *var <- value;  →  /set "var", value;
+    # Get sugar: <- *var;        →  /get "var";
+    # Capture:   -> *var;        →  /capture "var";
+    # Jump:      ====> @label;   →  /jump ?, "label";
+    # Fork:      ====+ @label;   →  /fork ?, "label";
+    # Call:      <===+ @label;   →  /call ?, "label";
+    # Flag:      #flag name val; →  /flag "name", val;
+    
+    # Implementation note: These transformations are complex
+    # and parser-level handling is recommended. See 02_parser.md.
+    
+    return source
+```
 
 ---
 
