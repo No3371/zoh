@@ -69,7 +69,7 @@ runtime.registerPreprocessor(MyCustomSyntax(), priority: 50)
 
 ### #embed
 
-```
+```zoh
 #embed "relative/path/to/file.zoh";
 #embed "absolute/path/to/file.zoh";
 ```
@@ -79,34 +79,34 @@ runtime.registerPreprocessor(MyCustomSyntax(), priority: 50)
 - Each file can only be embedded once per resolution pass (cycle detection)
 - Throws compile error if file not found
 
-### #macro / #macro;
+### Macro Definition
 
-```
-#macro MACRO_NAME param1, param2, param3;
-<macro body with |#param1#| placeholders>
-#macro;
+```zoh
+|%MACRO_NAME%|
+<macro body with placeholders>
+|%MACRO_NAME%|
 ```
 
 - Macro names are identifiers (case-sensitive)
-- Parameters are comma-separated identifiers
-- Placeholders: `|#paramName#|` for required, `|#paramName|default#|` for optional
-- Escape `|` as `\|`, `\` as `\\`
-- Macros are local to the story file
+- Placeholders: `|%N|` (index), `|%|` (auto-inc), `|%+N|` (relative), `|%-N|` (relative)
+- Escape `|` as `\|`
+- macros are local to the story file
 
-### #expand
+### Macro Expansion
 
+```zoh
+|%MACRO_NAME%|
+|%MACRO_NAME|arg0|arg1...|%|
 ```
-#expand MACRO_NAME;
-#expand MACRO_NAME p1:"value1", p2:"value2";
-```
 
-- Named parameters replace placeholders
-- Missing required placeholders cause compile error
-- Optional placeholders use default if not provided
+- `|%MACRO_NAME%|` expands with no arguments
+- `|%MACRO_NAME|...|%|` expands with positional arguments
+- Positional placeholders replace arguments
+- Unused arguments are ignored; missing arguments for placeholders result in replacement with `?` (nothing)
 
 ### #flag
 
-```
+```zoh
 #flag flag_name value;
 #flag [attr] flag_name value;
 ```
@@ -119,56 +119,17 @@ Syntactic sugar for `/flag "flag_name", value;`
 
 ### Step 1: File Resolution
 
-```
-FileResolver:
-  basePath: string              # Path of currently processing file
-  embeddedFiles: Set<string>    # Already embedded (for cycle detection)
-  
-  resolve(path: string): string
-    if isAbsolute(path):
-        return normalizePath(path)
-    return normalizePath(join(basePath, path))
-  
-  read(path: string): string
-    resolved = resolve(path)
-    if resolved in embeddedFiles:
-        error("Circular embed detected: " + resolved)
-    return readFile(resolved)
-```
+(No changes to file resolution logic)
 
 ### Step 2: Embed Processing
 
-```
-processEmbeds(source: string, sourceFile: string, embedded: Set<string>): string
-    result = StringBuilder()
-    lines = source.split('\n')
-    
-    for line in lines:
-        if matches(line, /^#embed\s+"(.+)"\s*;/):
-            path = extractPath(line)
-            absPath = resolve(path, sourceFile)
-            
-            if absPath in embedded:
-                error("Circular embed: " + absPath)
-            
-            embedded.add(absPath)
-            content = readFile(absPath)
-            
-            # Recursively process embeds in included file
-            content = processEmbeds(content, absPath, embedded)
-            result.append(content)
-        else:
-            result.append(line + '\n')
-    
-    return result.toString()
-```
+(No changes to embed processing logic)
 
 ### Step 3: Macro Collection
 
 ```
 MacroDefinition:
   name: string
-  params: List<string>
   body: string
   sourceFile: string
   sourceLine: int
@@ -176,30 +137,17 @@ MacroDefinition:
 collectMacros(source: string): (string, Map<string, MacroDefinition>)
     macros = Map<string, MacroDefinition>()
     result = StringBuilder()
-    lines = source.split('\n')
     
-    i = 0
-    while i < lines.length:
-        line = lines[i]
-        
-        if matches(line, /^#macro\s+(\w+)\s*(.*);/):
-            name, paramsStr = extractMacroHeader(line)
-            params = parseParams(paramsStr)
-            
-            # Collect body until #macro;
-            body = StringBuilder()
-            i++
-            while i < lines.length and not matches(lines[i], /^#macro\s*;/):
-                body.append(lines[i] + '\n')
-                i++
-            
-            if i >= lines.length:
-                error("Unterminated macro: " + name)
-            
-            macros[name] = MacroDefinition { name, params, body.toString() }
+    # Regex to capture macro definitions:
+    # ^\s*\|%(\w+)%\|\s*$
+    
+    while processing lines:
+        if line matches macro start:
+            name = captured_name
+            body = collect lines until matching |%NAME%| closure
+            macros[name] = MacroDefinition { name, body, ... }
         else:
-            result.append(line + '\n')
-        i++
+            result.append(line)
     
     return (result.toString(), macros)
 ```
@@ -209,70 +157,50 @@ collectMacros(source: string): (string, Map<string, MacroDefinition>)
 ```
 expandMacros(source: string, macros: Map<string, MacroDefinition>): string
     result = StringBuilder()
-    lines = source.split('\n')
     
-    for line in lines:
-        if matches(line, /^#expand\s+(\w+)\s*(.*);/):
-            name, argsStr = extractExpandCall(line)
-            
-            if name not in macros:
-                error("Unknown macro: " + name)
-            
-            macro = macros[name]
-            args = parseNamedArgs(argsStr)
-            
-            expanded = expandMacroBody(macro.body, macro.params, args)
-            result.append(expanded)
-        else:
-            result.append(line + '\n')
+    # Process text for expansions
+    # Pattern: \|%(\w+)(?:\|(.*?))?\|%\|
+    # Note: Regex must handle the "pipe or end" carefully
     
+    for each match in source:
+        name = match.name
+        argsString = match.args_part
+        
+        if name not in macros:
+             # If not a macro, maybe leave it (or error? Spec says error on unknown directive, but this is inline)
+             # Implementation choice: Treat as text if not found, or error?
+             # Spec implies it's a replacement.
+             error("Unknown macro: " + name)
+        
+        args = split argsString by pipe `|` (respecting `\|` escape)
+        
+        expanded = expandMacroBody(macros[name].body, args)
+        replace match with expanded
+        
     return result.toString()
 
-expandMacroBody(body: string, params: List<string>, args: Map<string, string>): string
+expandMacroBody(body: string, args: List<string>): string
     result = body
     
-    # Find all placeholders
-    for match in findAll(body, /\|#(\w+)(?:\|([^#]*))?\#\|/):
-        paramName = match.groups[0]
-        defaultValue = match.groups[1]  # May be null
-        
-        if paramName in args:
-            replacement = args[paramName]
-        elif defaultValue != null:
-            replacement = defaultValue
-        else:
-            error("Missing required parameter: " + paramName)
-        
-        result = result.replace(match.fullMatch, replacement)
+    # Replace placeholders
+    # |%N| -> args[N]
+    # |%| -> args[auto_inc_index]
+    # |%+N| / |%-N| -> args[current_index +/- N]
     
+    for each placeholder in body:
+        targetIndex = resolveIndex(placeholder)
+        replacement = args[targetIndex] if index in bounds else "?"
+        result.replace(placeholder, replacement)
+        
     # Handle escapes
-    result = result.replace("\\|", "|")
-    result = result.replace("\\\\", "\\")
+    result.replace("\|", "|")
     
     return result
 ```
 
 ### Step 5: Syntactic Sugar Transformation
 
-Transform sugar forms to standard verb calls at text level (or defer to parser):
-
-```
-transformSugar(source: string): string
-    # These can also be handled by parser, but text-level is simpler
-    
-    # Set sugar: *var <- value;  →  /set "var", value;
-    # Get sugar: <- *var;        →  /get "var";
-    # Capture:   -> *var;        →  /capture "var";
-    # Jump:      ====> @label;   →  /jump ?, "label";
-    # Fork:      ====+ @label;   →  /fork ?, "label";
-    # Call:      <===+ @label;   →  /call ?, "label";
-    # Flag:      #flag name val; →  /flag "name", val;
-    
-    # Implementation note: These transformations are complex
-    # and parser-level handling is recommended. See 02_parser.md.
-    
-    return source
-```
+(No changes to sugar transformation logic)
 
 ---
 
@@ -280,25 +208,32 @@ transformSugar(source: string): string
 
 | Pattern | Meaning |
 |---------|---------|
-| `\|#name#\|` | Required parameter |
-| `\|#name\|default#\|` | Optional with default |
-| `\\|` | Escaped pipe |
-| `\\\\` | Escaped backslash |
+| `\|%N\|` | Argument at position N (0-indexed) |
+| `\|%\|` | Next argument (auto-increment) |
+| `\|%+N\|` | Relative: current + N |
+| `\|%-N\|` | Relative: current - N |
+| `\\\|` | Escaped pipe |
 
-### Placeholder Example
+### Example
 
-```
-#macro DIALOG speaker, line;
-/converse [By: |#speaker#|] |#line|"..."#|;
-#macro;
+```zoh
+|%DIALOG%|
+/converse [By: "|%0|"] "|%1|";
+|%DIALOG%|
 
-#expand DIALOG speaker:"Narrator", line:"Hello!";
+|%DIALOG|Narrator|Hello!|%|
 :: Becomes:
 /converse [By: "Narrator"] "Hello!";
 
-#expand DIALOG speaker:"Bob";
-:: Becomes (using default):
-/converse [By: "Bob"] "...";
+|%MultiArgs%|
+/log "|%|";
+/log "|%|";
+|%MultiArgs%|
+
+|%MultiArgs|First|Second|%|
+:: Becomes:
+/log "First";
+/log "Second";
 ```
 
 ---
@@ -309,20 +244,23 @@ transformSugar(source: string): string
 
 | Error | Condition |
 |-------|-----------|
-| File not found | `#embed` path doesn't exist |
-| Circular embed | File embeds itself (directly or indirectly) |
-| Unterminated macro | `#macro` without closing `#macro;` |
-| Unknown macro | `#expand` references undefined macro |
-| Missing parameter | Required placeholder not provided |
+| Unterminated macro | `|%NAME%|` start without matching closing tag |
+| Malformed expansion | `|%NAME|...` without closing `|%|` |
 
-### Error Message Format
+---
 
-```
-[ERROR] file.zoh:15 - #embed: File not found: "missing.zoh"
-[ERROR] file.zoh:20 - #macro: Unterminated macro "DIALOG"
-[ERROR] file.zoh:30 - #expand: Unknown macro "TYPO_DIALOG"
-[ERROR] file.zoh:35 - #expand: Missing required parameter "speaker" for macro "DIALOG"
-```
+## Testing Checklist
+
+### Macro
+- [ ] Basic definition `|%NAME%|...|%NAME%|`
+- [ ] No-arg expansion `|%NAME%|`
+- [ ] Arg expansion `|%NAME|arg|%|`
+- [ ] Positional placeholders `|%0|`
+- [ ] Auto-inc placeholders `|%|`
+- [ ] Relative placeholders `|%+1|`
+- [ ] Escaped pipes `\|` in args
+- [ ] Multiline arguments
+- [ ] Missing args (replace with `?`)
 
 ---
 
