@@ -1,6 +1,6 @@
 # Plan: Pipe-Delimited Macro System (Spec & Docs)
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Created:** 2026-02-06
 > **Source:** [proposal-core-002-macro-pipe-syntax.md](./proposal-core-002-macro-pipe-syntax.md)
 > **Related Projex:** [20260206-proposal-core-002-macro-pipe-syntax-review.md](./20260206-proposal-core-002-macro-pipe-syntax-review.md)
