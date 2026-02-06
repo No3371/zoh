@@ -5,7 +5,7 @@
 > **Walkthrough:** [Link](./20260207-channel-racecond-walkthrough.md)
 > **Author:** Agent
 > **Source:** [20260207-spec-impl-redteam.md](./20260207-spec-impl-redteam.md) - Finding 1
-> **Related Projex:** [20260207-channel-racecond-csharp-plan.md](./20260207-channel-racecond-csharp-plan.md) (Part B)
+> **Related Projex:** [20260207-channel-racecond-csharp-plan.md](../../c#/projex/closed/20260207-channel-racecond-csharp-plan.md) (Part B)
 
 ---
 
