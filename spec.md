@@ -1828,31 +1828,74 @@ During each embed resolution, each file can only be embedded once.
 
 The language supports story body templating with macros.
 
-Macros are defined using the pipe-delimited syntax `|%NAME%|...|%NAME%|`.
+- Macros are defined using the pipe-delimited syntax `|%NAME%|...|%NAME%|`.
+- `|%MACRO_NAME%|` LINEs to open and close a definition. MACRO_NAME can not contain whitespaces or newlines, spaces on the left and right are ignored.
+- `|%|` for positional parameter
+- `|%1|` for mirroring 2nd parameter in the definition
+- `|%+2|` for mirroring the second parameter found after this parameter
+- `|%-2|` for mirroring the second parameter found before this parameter
 
 ### Definition
 ```zoh
 |%MACRO_NAME%|
 <body with placeholders>
 |%MACRO_NAME%|
+
+|%NAME_CHAR%|
+/save *pc_name, "|%|";
+/converse "Your name is |%0|;
+/converse "Your name is |%-2|;
+|%NAME_CHAR%|
+
+|%NAME_CHAR|tommy123|%|
 ```
 
 ### Expansion
+
+- `|%MACRO_NAME` starts a expansion. `|%|` closes an expansion.
+- `|%MACRO_NAME|%|` for expanding the macro without replacement parameters. MACRO_NAME can not contain whitespaces or newlines, spaces on the left and right are ignored.
+- `|%MACRO_NAME|PARAM1|PARAM2|%|`
+- Macro replacement are optional with available positional parameters. `|%|` without matching parameters at matching index simply is replaced with an empty string:
+- Macros can be denoted in multilines as long as long as each line starts with `|PARAM`.
+
 ```zoh
 |%MACRO_NAME|%|
 |%MACRO_NAME|arg0|arg1|...|%|
+
+|% NOTIFY %|
+/notify |%|, |%|;
+|%NOTIFY%|
+
+|%NOTIFY|
+|tommy123
+|"You got a mail!"
+|%|
 ```
 
-### Placeholders
 
-| Pattern | Meaning |
-|---------|---------|
-| `|%N|` | Argument at position N (0-indexed) |
-| `|%|` | Next argument (auto-increment) |
-| `|%+N|` | Relative: current + N |
-| `|%-N|` | Relative: current - N |
-| `\|` | Escaped pipe (literal) |
+### Trimming
+Arguments in macro expansion are trimmed symmetrically. The preprocessor calculates the minimum of leading and trailing whitespace, and removes that amount from both ends. This allows formatted macro calls without injecting unwanted whitespace.
 
+### Escaping
+- `\|` escapes the pipe `|` character.
+- `\%` escapes the percent `%` character (e.g. to write literal `%|`).
+
+### Indentation
+The macro expansion preserves the indentation (continuous white spaces from line start) of the usage line. All lines in the expanded body are indented by the same amount of whitespace found before the `|%` token of the call.
+
+```
+    :: Indented macro call
+    |%GENERATE_LOGIC|%|
+```
+
+Expands to:
+
+```
+    :: Indented lines
+    /if *condition,
+        /do_something;
+    ;
+```
 
 ## Checkpoint
 

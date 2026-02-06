@@ -102,7 +102,26 @@ runtime.registerPreprocessor(MyCustomSyntax(), priority: 50)
 - `|%MACRO_NAME%|%|` expands with no arguments
 - `|%MACRO_NAME|...|%|` expands with positional arguments
 - Positional placeholders replace arguments
-- Unused arguments are ignored; missing arguments for placeholders result in replacement with `?` (nothing)
+- Unused arguments are ignored; missing arguments for placeholders result in replacement with an empty string
+
+### Multiline Parameters
+
+Parameters can span multiple lines. Each continuation line starts with `|`:
+
+```zoh
+|%MACRO|arg1
+|arg2
+|arg3|%|
+
+or
+
+|%MACRO|arg1
+|arg2
+|arg3
+|%|
+```
+
+This is equivalent to `|%MACRO|arg1|arg2|arg3|%|`.
 
 ### #flag
 
@@ -211,6 +230,14 @@ expandMacros(source: string, macros: Map<string, MacroDefinition>): string
              error("Unknown macro: " + name)
         
         args = split argsString by pipe `|` (respecting `\|` escape)
+
+        # Smart Symmetric Trimming
+        # Remove min(leading_spaces, trailing_spaces) from both ends
+        for each arg in args:
+            L = countLeadingSpaces(arg)
+            T = countTrailingSpaces(arg)
+            trim = min(L, T)
+            arg = substring(arg, trim, length - trim)
         
         expanded = expandMacroBody(macros[name].body, args)
         replace match with expanded
@@ -227,13 +254,35 @@ expandMacroBody(body: string, args: List<string>): string
     
     for each placeholder in body:
         targetIndex = resolveIndex(placeholder)
-        replacement = args[targetIndex] if index in bounds else "?"
+        replacement = args[targetIndex] if index in bounds else ""
         result.replace(placeholder, replacement)
         
     # Handle escapes
     result.replace("\|", "|")
     
     return result
+```
+
+### Indentation Preservation
+
+The macro expansion preserves the indentation of the call site. All lines in the expanded body are prefixed with the whitespace found before the `|%` token.
+
+```zoh
+    |%LOGIC|%|
+```
+
+If `LOGIC` macro body is:
+```zoh
+/if *condition,
+    /do_something;
+;
+```
+
+Expanded result:
+```zoh
+    /if *condition,
+        /do_something;
+    ;
 ```
 
 ### Step 5: Syntactic Sugar Transformation
@@ -269,6 +318,7 @@ transformSugar(source: string): string
 | `\|%+N\|` | Relative: current + N |
 | `\|%-N\|` | Relative: current - N |
 | `\\\|` | Escaped pipe |
+| `\%` | Escaped percent (literal `%`) |
 
 ### Example
 
