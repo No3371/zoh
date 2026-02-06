@@ -57,7 +57,7 @@ The implementation is divided into **phases** that build upon each other. Each p
 |----------|-------------|--------------|
 | [01_lexer.md](./01_lexer.md) | Tokenize ZOH source into a stream of tokens | None |
 | [02_parser.md](./02_parser.md) | Build AST from token stream | Lexer |
-| [03_preprocessor.md](./03_preprocessor.md) | Handle `#embed`, `#macro`, `#expand`, `#flag` | Parser |
+| [03_preprocessor.md](./03_preprocessor.md) | Handle `#embed`, `#macro`, `#expand` | Parser |
 
 ### Phase 2: Core Execution (Engine)
 

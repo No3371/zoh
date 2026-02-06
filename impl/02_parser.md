@@ -76,7 +76,6 @@ SugarStatement:
   | JumpSugar               # ====> @label;
   | ForkSugar               # ====+ @label;
   | CallSugar               # <===+ @label;
-  | FlagSugar               # #flag name value;
   | EvalSugar               # /`expr`;
   | InterpolateSugar        # /"string";
 ```
@@ -135,7 +134,7 @@ verb_call_value := verb_call
 
 sugar_statement := set_sugar | get_sugar | capture_sugar
                  | jump_sugar | fork_sugar | call_sugar
-                 | flag_sugar | eval_sugar | interpolate_sugar
+                 | eval_sugar | interpolate_sugar
 
 set_sugar       := ASTERISK IDENTIFIER (LBRACKET value RBRACKET)? 
                    attributes? (ARROW_LEFT value)? SEMICOLON
@@ -149,7 +148,6 @@ fork_sugar      := FORK attributes? AT label_ref (value)* SEMICOLON
 call_sugar      := CALL attributes? AT label_ref (value)* SEMICOLON
 label_ref       := (IDENTIFIER COLON)? IDENTIFIER
 
-flag_sugar      := HASH FLAG attributes? IDENTIFIER value SEMICOLON
 eval_sugar      := SLASH_BACKTICK expr_content BACKTICK attributes? SEMICOLON
 interpolate_sugar := SLASH_QUOTE string_content QUOTE attributes? SEMICOLON
 ```
@@ -428,8 +426,6 @@ Sugar statements should be transformed to standard verb calls:
 | `` /`expr`; `` | `/evaluate `expr`;` |
 | `` /`expr` [attr]; `` | `/evaluate [attr] `expr`;` |
 | `/"string";` | `/interpolate "string";` |
-| `#flag name value;` | `/flag "name", value;` |
-| `#flag [attr] name value;` | `/flag [attr] "name", value;` |
 
 ---
 

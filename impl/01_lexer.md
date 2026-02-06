@@ -47,7 +47,7 @@ The lexer (tokenizer) converts ZOH source code into a stream of tokens. This is 
 | `FORK` | `====+` | `/fork` |
 | `CALL` | `<===+` | `/call` |
 | `STORY_SEP` | `===` | Story header separator |
-| `HASH_DIRECTIVE` | `#embed`, `#macro`, `#expand`, `#flag` | Preprocessor |
+| `HASH_DIRECTIVE` | `#embed`, `#macro`, `#expand` | Preprocessor |
 | `SLASH_BACKTICK` | `` /` `` | `/evaluate` sugar |
 | `SLASH_QUOTE` | `/"` or `/'` | `/interpolate` sugar |
 
@@ -147,7 +147,7 @@ return tokens
 3. **Multi-char operators**: `====>`, `====+`, `<===+`, `===`, `<-`, `->`
 4. **String literals**: `"`, `'`, `"""`, `'''`
 5. **Sugar prefixes**: `/"`, `/'`, `` /` ``
-6. **Preprocessor**: `#embed`, `#macro`, `#expand`, `#flag`
+6. **Preprocessor**: `#embed`, `#macro`, `#expand`
 7. **Numbers**: digits possibly with `.`
 8. **Identifiers/Keywords**: letters, underscore, then alphanumeric
 9. **Single-char tokens**: `;`, `,`, `:`, `[`, `]`, etc.

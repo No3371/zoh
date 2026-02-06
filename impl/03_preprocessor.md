@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The preprocessor handles text-level transformations before parsing. It processes `#embed`, `#macro`, `#expand`, and `#flag` directives by manipulating the raw source text.
+The preprocessor handles text-level transformations before parsing. It processes `#embed`, `#macro`, and `#expand` directives by manipulating the raw source text.
 
 ---
 
@@ -122,15 +122,6 @@ or
 ```
 
 This is equivalent to `|%MACRO|arg1|arg2|arg3|%|`.
-
-### #flag
-
-```zoh
-#flag flag_name value;
-#flag [attr] flag_name value;
-```
-
-Syntactic sugar for `/flag "flag_name", value;`
 
 ---
 
@@ -299,7 +290,6 @@ transformSugar(source: string): string
     # Jump:      ====> @label;   →  /jump ?, "label";
     # Fork:      ====+ @label;   →  /fork ?, "label";
     # Call:      <===+ @label;   →  /call ?, "label";
-    # Flag:      #flag name val; →  /flag "name", val;
     
     # Implementation note: These transformations are complex
     # and parser-level handling is recommended. See 02_parser.md.

@@ -172,8 +172,7 @@ This example shows:
 Story Name
 meta_key: meta_value;
 ===
-#flag flag_name on
-    
+
 :: Inline
 ::comments
 :::
@@ -226,7 +225,6 @@ unnamed_param1, unnamed_param2...;
 	p2
 /;
 
-#flag flag_name off
 ```
 
 # Runtime
@@ -1398,12 +1396,6 @@ A nothing.
 ```
 /flag "flag_name", value;
 /flag [attr] "flag_name", *value;
-```
-
-#### Syntactic Sugar Forms
-```
-#flag flag_name value;
-#flag [attr] flag_name value;
 ```
 
 ### Sleep
