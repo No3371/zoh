@@ -333,24 +333,24 @@ Channel:
   waiters: List<Waiter>    # Blocked pullers waiting for values
   
   push(value: Value)
-    if closed: error("Channel closed")
+    if closed: error("closed", "Channel closed")
     queue.enqueue(value)
     notifyWaiters()        # Wake one waiter if any
   
-  # Returns a PullResult: { status: "success"|"timeout"|"closed", value: Value? }
-  pull(timeout: double?, expectedGeneration: int): PullResult
-    if closed or generation != expectedGeneration:
-      return { status: "closed" }
+  # Returns value or throws error
+  pull(timeout: double?, expectedGeneration: int): Value?
+    if closed: error("closed", "Channel closed")
+    if generation != expectedGeneration: error("stale", "Channel stale")
     
     if timeout == null:
       result = queue.dequeueBlocking()
-      if result is CloseSignal: return { status: "closed" }
-      return { status: "success", value: result }
+      if result is CloseSignal: error("closed", "Channel closed")
+      return result
     else:
       result = queue.dequeueWithTimeout(timeout)
-      if result is TimeoutSignal: return { status: "timeout" }
-      if result is CloseSignal: return { status: "closed" }
-      return { status: "success", value: result }
+      if result is TimeoutSignal: return Nothing
+      if result is CloseSignal: error("closed", "Channel closed")
+      return result
   
   close()
     closed = true

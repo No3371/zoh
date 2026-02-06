@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The preprocessor handles text-level transformations before parsing. It processes `#embed`, `#macro`, and `#expand` directives by manipulating the raw source text.
+The preprocessor handles text-level transformations before parsing. It processes `#embed` and `|%macro%|` directives by manipulating the raw source text.
 
 ---
 

@@ -694,7 +694,7 @@ Diagnostics from the `cache` verb (if provided) should be appended. Therefore, i
 
 ### Core.Interpolate
 
-An interpolate verb interpolates string with `${*var}` syntax ONCE for dynamic text generation. Undefined variables are treated as `nothing` (stringifying to `?` or provided `fallback` parameter).
+An interpolate verb interpolates string with `${*var}` syntax **non-recursively** (ONCE) for dynamic text generation. Any interpolation syntax (`${...}`) contained within the resolved values of variables is treated as literal text and is **not** processed. Undefined variables are treated as `nothing` (stringifying to `?` or provided `fallback` parameter).
 
 For exmaple, `"Hello, ${*name}!"` should be interpolated to "Hello, John!" if `*name` is resolved to a string "John". (Without `/Interpolate`, It would otherwise requires `` /eval `"Hello, " + *name + "!` ``) 
 
