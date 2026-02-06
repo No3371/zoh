@@ -340,9 +340,9 @@ Variable names are case-insensitive, can NOT start with digits and can NOT conta
 - \<channel\>
 	- A channel is a FIFO, concurrent safe, unbounded, global pipe managed by the runtime.
 	- Denoted as `<channel_name>`, which servers as a pointer to the underlying data structure uniquely identified by "channel_name" in the channel-dedicated storage in the runtime.
-	- `<channel>` points to one same underlying data structure for any executing contexts at the same time.
-	- A channel can be closed. New channel can be created with the same name, but does not point to the old channel.
 	- No white space is allowed between `<` and `>`.
+	- `<channel>` points to one same underlying data structure for any executing contexts at the same time.
+	- A channel can be closed. New channel can be created with the same name, but does not point to the old channel. Internally, channels have `generation` to distinguish channels with same names.
 - [\`expression\`](./expr.md)
 	- An expression is a special construct that can be evaluated by `/evalulate` at runtime.
 	- Denoted as `` `expr` ``.
@@ -1447,9 +1447,25 @@ A nothing.
 signal "message_name", msg;
 ```
 
+### Channel.Open
+
+A open verb creates a new channel or re-create a closed channel.
+
+#### Parameters
+- `channel`: The channel to push to. Accept `<channel>` or `*<channel>`.
+
+#### Returns
+A nothing.
+
+#### Examples
+```
+/open *channel;
+/open <channel>;
+```
+
 ### Channel.Push
 
-A push verb pushes a variable to a channel. Creates a new channel if it does not exist or closed.
+A push verb pushes a variable to a channel.
 
 #### Parameters
 - `channel`: The channel to push to. Accept `<channel>` or `*<channel>`.

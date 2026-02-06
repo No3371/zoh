@@ -1,7 +1,8 @@
 # Implement Channel Generation IDs and /open Verb in C# (Finding 1 - Part B)
 
-> **Status:** Ready
-> **Created:** 2026-02-07
+> **Status:** Complete
+> **Completed:** 2026-02-07
+> **Walkthrough:** [Link](./20260207-channel-racecond-walkthrough.md)
 > **Author:** Agent
 > **Source:** [20260207-spec-impl-redteam.md](./20260207-spec-impl-redteam.md) - Finding 1
 > **Related Projex:** [20260207-channel-racecond-impl-plan.md](./20260207-channel-racecond-impl-plan.md) (Part A - Docs)

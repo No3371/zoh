@@ -375,6 +375,53 @@ Channel:
 > **Generation IDs**: Each channel has a generation number. Pullers should check
 > generation before/after blocking to ensure they don't accidentally pull from
 > a NEW channel with the same name that was created after the old one closed.
+>
+> [!NOTE]
+> When `/open` re-creates a closed channel, the new channel has `generation = oldGeneration + 1`.
+> This ensures that any `<channel>` references captured before the close will fail on the
+> generation check during `/pull`.
+
+---
+
+## Open
+
+**Purpose**: Create a new channel or re-create a closed channel.
+
+### Signature
+```
+/open channel;
+```
+
+### Behavior
+
+- Creates a new channel if it doesn't exist
+- If channel exists and is closed, creates a new channel with incremented generation
+- If channel exists and is open, no-op (returns success)
+
+### Implementation
+
+```
+OpenDriver.execute(call, context):
+    channelRef = resolve(call.params[0], context)
+    
+    if channelRef is not ChannelValue:
+        return fatal("invalid_type", "Expected channel, got: " + channelRef.getType())
+    
+    channelName = channelRef.name
+    
+    # Check if channel exists
+    if context.runtime.channels.exists(channelName):
+        channel = context.runtime.channels.get(channelName)
+        if channel.closed:
+            # Create new channel with incremented generation
+            context.runtime.channels.remove(channelName)
+            context.runtime.channels.create(channelName)
+    else:
+        # Create new channel
+        context.runtime.channels.create(channelName)
+    
+    return ok()
+```
 
 ---
 
@@ -389,7 +436,14 @@ Channel:
 
 ### Behavior
 
-- **Creates a new channel** if it doesn't exist or is closed
+- Pushes value to existing open channel
+- **Errors if channel doesn't exist or is closed**
+
+### Diagnostics
+
+- Fatal: `invalid_type` — Parameter is not a channel
+- Error: `not_found` — Channel does not exist
+- Error: `closed` — Channel is closed
 
 ### Implementation
 
@@ -403,15 +457,15 @@ PushDriver.execute(call, context):
     
     channelName = channelRef.name
     
-    # get() auto-creates channel if it doesn't exist
-    # If channel exists but is closed, create a new one
-    if context.runtime.channels.exists(channelName):
-        channel = context.runtime.channels.get(channelName)
-        if channel.closed:
-            context.runtime.channels.remove(channelName)
-            channel = context.runtime.channels.get(channelName)  # Creates new
-    else:
-        channel = context.runtime.channels.get(channelName)  # Creates new
+    # Check if channel exists
+    if not context.runtime.channels.exists(channelName):
+        return error("not_found", "Channel does not exist: " + channelName)
+    
+    channel = context.runtime.channels.get(channelName)
+    
+    # Check if channel is closed
+    if channel.closed:
+        return error("closed", "Cannot push to closed channel: " + channelName)
     
     channel.push(value)
     

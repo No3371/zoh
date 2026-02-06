@@ -1,7 +1,8 @@
 # Update Impl Docs to Match Spec Channel Changes (Finding 1 - Part A)
 
-> **Status:** Ready
-> **Created:** 2026-02-07
+> **Status:** Complete
+> **Completed:** 2026-02-07
+> **Walkthrough:** [Link](./20260207-channel-racecond-walkthrough.md)
 > **Author:** Agent
 > **Source:** [20260207-spec-impl-redteam.md](./20260207-spec-impl-redteam.md) - Finding 1
 > **Related Projex:** [20260207-channel-racecond-csharp-plan.md](./20260207-channel-racecond-csharp-plan.md) (Part B)
