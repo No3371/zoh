@@ -293,9 +293,13 @@ CompiledVerbCall:
   sourceLine: int                 # Original source line
   storyLine: int                  # Line in compiled story body
 
+ContractParam:
+  name: string                    # Variable name
+  type: string?                   # Type constraint (null = any non-nothing)
+
 CompiledCheckpoint:
   name: string
-  contract: List<string>          # Required variable names
+  contract: List<ContractParam>   # Required variables with optional types
   statementIndex: int             # Index in statements list
 
 CompiledValue:
@@ -482,6 +486,38 @@ Runtime.tick():
         # Execute if running (including if just unblocked)
         if context.state == RUNNING:
             context.run()
+
+---
+
+## Checkpoint Contract Validation
+
+Navigation verbs (`/jump`, `/call`, `/fork`) AND the runtime execution loop (when falling through to a checkpoint) must validate checkpoint contracts before transferring control.
+
+```
+validateContract(checkpoint: CompiledCheckpoint, context: Context):
+    for param in checkpoint.contract:
+        val = context.get(param.name)
+        
+        if val is Nothing:
+            FATAL "checkpoint_violation": "Required variable '*{param.name}' is nothing"
+        
+        if param.type != null:
+            if not matchesType(val, param.type):
+                FATAL "checkpoint_violation": "Variable '*{param.name}' expected {param.type}, got {typeOf(val)}"
+
+matchesType(val: Value, expectedType: string): bool:
+    match expectedType.toLowerCase():
+        "integer" -> val is ZohInteger
+        "double"  -> val is ZohDouble
+        "string"  -> val is ZohString
+        "boolean" -> val is ZohBool
+        "list"    -> val is ZohList
+        "map"     -> val is ZohMap
+        "channel" -> val is ZohChannel
+        "verb"    -> val is ZohVerb
+        "expression" -> val is ZohExpression
+        _ -> false
+```
 ```
 
 ---

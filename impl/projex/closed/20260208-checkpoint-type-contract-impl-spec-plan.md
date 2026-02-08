@@ -1,6 +1,8 @@
 # Update Impl Docs with Checkpoint Type Contracts
 
-> **Status:** Ready
+> **Status:** Created
+> **Completed:** 2026-02-08
+> **Walkthrough:** [Walkthrough](20260208-checkpoint-type-contract-walkthrough.md)
 > **Created:** 2026-02-08
 > **Author:** Antigravity (on behalf of User)
 > **Source:** [Proposal](file:///s:/repos/zoh/projex/20260208-checkpoint-type-contract-proposal.md)

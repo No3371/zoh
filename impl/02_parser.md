@@ -83,9 +83,13 @@ SugarStatement:
 ### Checkpoint
 
 ```
+ContractParam:
+  name: string              # Variable name (without *)
+  type: string?             # Optional type constraint (e.g. "integer", "string")
+
 CheckpointNode:
   name: string              # Checkpoint name (without @)
-  contract: List<Reference> # Required variables
+  contract: List<ContractParam> # Required variables with optional type constraints
   position: Position
 ```
 
@@ -102,7 +106,8 @@ metadata_entry  := IDENTIFIER COLON value SEMICOLON
 story_body      := (statement)*
 statement       := verb_call | checkpoint | sugar_statement | preprocessor
 
-checkpoint      := AT IDENTIFIER (reference)*
+checkpoint      := AT IDENTIFIER (contract_param)*
+contract_param  := ASTERISK IDENTIFIER (COLON IDENTIFIER)?
 
 verb_call       := VERB_START namespaced_id attributes params SEMICOLON
                  | VERB_START namespaced_id VERB_START attributes params BLOCK_END
