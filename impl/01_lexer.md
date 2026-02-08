@@ -18,6 +18,7 @@ The lexer (tokenizer) converts ZOH source code into a stream of tokens. This is 
 | `NOTHING` | `?` | Default/null value |
 | `TRUE` | `true` (case-insensitive) | |
 | `FALSE` | `false` (case-insensitive) | |
+| `CHECKPOINT_END` | `\n` (in CheckPointMode) | Virtual token for checkpoint end |
 
 ### 2. Punctuation & Operators
 
@@ -130,6 +131,16 @@ Scanner:
 ```
 
 ### Step 4: Lexing Logic
+
+#### Context-Sensitive Newlines (CheckPointMode)
+
+The lexer must be stateful to handle checkpoint definitions correctly.
+
+1.  **Enter State:** When the lexer encounters a `LABEL` token (`@identifier`), it enters `CheckPointMode`.
+2.  **In State:** While in `CheckPointMode`, a newline character (`\n`) is **not** skipped. Instead, it emits a `CHECKPOINT_END` token.
+3.  **Exit State:** After emitting `CHECKPOINT_END`, the lexer exits `CheckPointMode` and returns to normal behavior (skipping whitespace).
+
+*Note: This ensures that checkpoints are terminated by a newline, avoiding the need for parser lookahead.*
 
 #### Main Loop
 

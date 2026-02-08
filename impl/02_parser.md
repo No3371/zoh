@@ -106,7 +106,7 @@ metadata_entry  := IDENTIFIER COLON value SEMICOLON
 story_body      := (statement)*
 statement       := verb_call | checkpoint | sugar_statement | preprocessor
 
-checkpoint      := AT IDENTIFIER (contract_param)*
+checkpoint      := AT IDENTIFIER (contract_param)* CHECKPOINT_END
 contract_param  := ASTERISK IDENTIFIER (COLON IDENTIFIER)?
 
 verb_call       := VERB_START namespaced_id attributes params SEMICOLON
@@ -207,6 +207,7 @@ parseStory():
 parseStatement():
     if check(AT):
         return parseCheckpoint()
+        # parseCheckpoint will consume CHECKPOINT_END
     if check(VERB_START):
         return parseVerbCall()
     if check(ASTERISK):
@@ -230,6 +231,30 @@ parseStatement():
     
     error("Unexpected token")
     synchronize()
+
+### Step 3.5: Checkpoint Parsing
+
+```
+parseCheckpoint():
+    consume(AT, "Expected '@' start of checkpoint")
+    name = consume(IDENTIFIER, "Expected checkpoint name")
+    
+    contract = []
+    while check(ASTERISK):
+        contract.add(parseContractParam())
+        
+    consume(CHECKPOINT_END, "Expected newline after checkpoint definition")
+    
+    return CheckpointNode { name, contract }
+
+parseContractParam():
+    consume(ASTERISK)
+    name = consume(IDENTIFIER)
+    type = Nothing
+    if match(COLON):
+        type = consume(IDENTIFIER)
+    return ContractParam { name, type }
+```
 ```
 
 ### Step 4: Verb Call Parsing
@@ -497,7 +522,7 @@ synchronize():
 - [ ] Channels
 
 ### Checkpoints
-- [ ] Checkpoint definition
+- [ ] Checkpoint definition (ensure newline follows)
 - [ ] Checkpoint with contract: `@name *var1 *var2`
 - [ ] Checkpoint reference in jump/fork/call
 
