@@ -349,7 +349,7 @@ Variable names are case-insensitive, can NOT start with digits and can NOT conta
 - *reference
 	- Denoted as `*variable_name` or `*variable_name[index1][index2]...` for nested access.
 	- A reference value carries a path of zero or more indexes for nested collection navigation.
-	- Each index navigates into a collection: integers for lists (0-based), strings for map keys.
+	- Each index navigates into a collection: integers for lists (0-based, negative index supported), strings for map keys.
 	- **Implicit Resolution**: If an index evaluates to an `expression`, it is automatically evaluated (recursively) until a non-expression value is matched.
 	- **Index Type Validation**: After resolution, indices must match collection type:
 		- Lists: integer required (fatal `invalid_index_type` otherwise)
