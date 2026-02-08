@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENT.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -83,6 +83,7 @@ Nested namespace and forbid ambiguity.
 | `/"Hello ${*name}";` | `/interpolate "Hello ${*name}";` |
 | `====> @checkpoint;` | `/jump ?, "checkpoint";` |
 | `====> @story:checkpoint;` | `/jump "story", "checkpoint";` |
+| `====> @checkpoint *var;` | `/jump ?, "checkpoint", *var;` |
 | `====+ @checkpoint;` | `/fork ?, "checkpoint";` |
 | `<===+ @checkpoint;` | `/call ?, "checkpoint";` |
 
@@ -157,6 +158,7 @@ primary    := literal | '*' identifier [ '[' index ']' ] | '(' expression ')' | 
 ### Channels
 | Verb | Purpose |
 |------|---------|
+| `/open <chan>;` | Create/reset channel |
 | `/push <chan>, value;` | Send to channel |
 | `/pull <chan>;` | Receive from channel (blocking) |
 | `/pull <chan>, timeout: 5;` | Receive with timeout |
@@ -186,10 +188,31 @@ primary    := literal | '*' identifier [ '[' index ']' ] | '(' expression ')' | 
 | `/rand 1, 10;` | Random integer in range |
 | `/roll *a, *b, *c;` | Random selection |
 | `/wroll *a, 1, *b, 2;` | Weighted random |
+| `/increase *var, 1;` | Increment value |
+| `/decrease *var, 1;` | Decrement value |
+| `/parse "1", "int";` | Parse string to value |
 | `/sleep 1.5;` | Pause execution |
+| `/wait "msg", timeout: 5;` | Wait for signal |
+| `/signal "msg", val;` | Broadcast signal |
 | `/diagnose;` | Get last diagnostics |
 | `/try /risky;, catch: /handler;;` | Error handling |
 | `/defer /cleanup;;` | Deferred execution |
+
+### Persistence
+| Verb | Purpose |
+|------|---------|
+| `/write *var;` | Save to store |
+| `/read *var;` | Load from store |
+| `/erase *var;` | Remove from store |
+| `/purge;` | Clear all data |
+
+### Debug
+| Verb | Purpose |
+|------|---------|
+| `/info "msg";` | Log info |
+| `/warning "msg";` | Log warning |
+| `/error "msg";` | Log error |
+| `/fatal "msg";` | Log fatal (exits) |
 
 ---
 
@@ -202,6 +225,7 @@ Common attributes:
 - `[required]` - Require variable exists
 - `[resolve]` - Evaluate verb/expr before storing
 - `[typed:"integer"]` - Declare variable type
+- `[OneOf:[1, 2]]` - Restrict value to list
 - `[clone]` - Clone context state for fork/call
 - `[inline]` - Copy variables back after call
 - `[suppress]` - Suppress diagnostics in try
@@ -233,7 +257,7 @@ meta_key: meta_value;
 ::: Multi-line
     comment :::
 
-@checkpoint_name
+@checkpoint_name *req *typed:integer
 /verb;
 
 ====+ @parallel_context;   :: Fork
