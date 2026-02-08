@@ -1915,11 +1915,19 @@ Checkpoint names are case-insensitive, can not caontain whitespace or reserved c
 
 Checkpoint names must be unique within each story.
 
-A checkpoint can be suffixed with variable references. All referenced variables must not be resolved to `nothing` when the context is about to execute across or jump/fork/call to the checkpoint.
+A checkpoint can be suffixed with variable references. These references define the contract for the checkpoint.
+The syntax for contract variables is `*var` or `*var:type`.
+- `*var`: The variable must exist and not be `nothing`.
+- `*var:type`: The variable must exist, not be `nothing`, and match the specified type.
+Supported types are all types except `nothing` and `reference`: `string`, `integer`, `double`, `boolean`, `list`, `map`, `channel`, `verb`, `expression`.
+
+Validation occurs when a context jumps, calls, or forks to the checkpoint, OR when execution naturally reaches it.
+- If a required variable is missing or `nothing`, a fatal `checkpoint_violation` is raised.
+- If a typed variable does not match the specified type, a fatal `checkpoint_violation` is raised.
 
 ### Examples
 ```
-@checkpoint *var1 *var2 *var3
+@checkpoint *var1 *var2:integer *var3:string
 ```
 
 # Runtime Design
