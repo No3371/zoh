@@ -100,7 +100,7 @@ CheckpointNode:
 ```ebnf
 story           := story_header story_body
 
-story_header    := IDENTIFIER NEWLINE (metadata_entry)* STORY_SEP
+story_header    := (IDENTIFIER | STRING)+ STORY_NAME_END (metadata_entry)* STORY_SEP
 metadata_entry  := IDENTIFIER COLON value SEMICOLON
 
 story_body      := (statement)*

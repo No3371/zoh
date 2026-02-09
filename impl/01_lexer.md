@@ -19,6 +19,7 @@ The lexer (tokenizer) converts ZOH source code into a stream of tokens. This is 
 | `TRUE` | `true` (case-insensitive) | |
 | `FALSE` | `false` (case-insensitive) | |
 | `CHECKPOINT_END` | `\n` (in CheckPointMode) | Virtual token for checkpoint end |
+| `STORY_NAME_END` | `\n` (in StoryHeaderMode) | Virtual token for story name end |
 
 ### 2. Punctuation & Operators
 
@@ -131,6 +132,14 @@ Scanner:
 ```
 
 ### Step 4: Lexing Logic
+
+#### Context-Sensitive Newlines (StoryHeaderMode)
+
+The lexer starts in `StoryHeaderMode` to parse the story name (which may contain spaces).
+
+1.  **Enter State:** The lexer begins in this state.
+2.  **In State:** While in `StoryHeaderMode`, a newline character (`\n`) is **not** skipped. Instead, it emits a `STORY_NAME_END` token.
+3.  **Exit State:** After emitting `STORY_NAME_END`, the lexer transitions to normal behavior.
 
 #### Context-Sensitive Newlines (CheckPointMode)
 
