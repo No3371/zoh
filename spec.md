@@ -339,9 +339,9 @@ Variable names are case-insensitive, can NOT start with digits and can NOT conta
 	- A list is a collection of variables. Denoted as `[value1, value2, value3...]`.
 - \<channel\>
 	- A channel is a FIFO, concurrent safe, unbounded, global pipe managed by the runtime.
-	- Denoted as `<channel_name>`, which servers as a pointer to the underlying data structure uniquely identified by "channel_name" in the channel-dedicated storage in the runtime.
+	- Denoted as `<channel_name>`, which serves as a pointer to the underlying channel hub uniquely identified by "channel_name" in the channel-dedicated storage in the runtime.
 	- No white space is allowed between `<` and `>`.
-	- `<channel>` points to one same underlying data structure for any executing contexts at the same time.
+	- `<channel>` points to one same logical channel for any executing contexts at the same time. Each context maintains its own outbox (push buffer) and inbox (pull buffer), coordinated by the channel hub. Contexts are auto-registered with the hub on first `/push` or `/pull`.
 	- A channel can be closed. New channel can be created with the same name, but does not point to the old channel. Internally, channels have `generation` to distinguish channels with same names.
 - [\`expression\`](./expr.md)
 	- An expression is a special construct that can be evaluated by `/evalulate` at runtime.
@@ -1449,10 +1449,10 @@ signal "message_name", msg;
 
 ### Channel.Open
 
-A open verb creates a new channel or re-create a closed channel.
+An open verb creates a new channel or re-creates a closed channel.
 
 #### Parameters
-- `channel`: The channel to push to. Accept `<channel>` or `*<channel>`.
+- `channel`: The channel to open. Accept `<channel>` or `*<channel>`.
 
 #### Returns
 A nothing.
@@ -1465,7 +1465,11 @@ A nothing.
 
 ### Channel.Push
 
-A push verb pushes a variable to a channel.
+A push verb pushes a variable to a channel. By default, the push blocks until the value is consumed by a puller (rendezvous semantics). Use `wait: false` for fire-and-forget behavior.
+
+#### Named Parameters
+- `wait`: Whether to block until the value is consumed. Accept `boolean`. Optional. Default to `true`.
+- `timeout`: The timeout in seconds when `wait` is `true`. Accept `double` or `*double`. Optional. Default to `?`. Ignored when `wait` is `false`.
 
 #### Parameters
 - `channel`: The channel to push to. Accept `<channel>` or `*<channel>`.
@@ -1474,10 +1478,21 @@ A push verb pushes a variable to a channel.
 #### Returns
 A nothing.
 
+#### Diagnostics
+- Error: `not_found`: The channel does not exist.
+- Error: `closed`: The channel is closed, or closed while waiting.
+- Info: `timeout`: The push timed out before the value was consumed (only with `wait: true` and `timeout`).
+
 #### Examples
 ```
-/push *channel, *var;
+:: Blocking push (default) — waits until consumed
 /push <channel>, *var;
+
+:: Blocking push with timeout
+/push <channel>, *var, timeout: 5;
+
+:: Fire-and-forget push
+/push <channel>, *var, wait: false;
 ```
 
 ### Channel.Pull
