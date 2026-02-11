@@ -1,7 +1,7 @@
 # Red Team: Channel Inbox/Outbox Architecture
 
 > **Created:** 2026-02-11 | **Lead:** Agent | **Mode:** Skeptic / Forensic
-> **Subject:** `20260211-channel-inbox-outbox-proposal.md` | **Related:** `spec.md`, `impl/08_concurrency.md`, `impl/09_runtime.md`
+> **Subject:** `20260211-channel-inbox-outbox-proposal.md` | **Related:** `spec.md`, `impl/08_concurrency.md`, `impl/09_runtime.md`, `20260211-channel-inbox-outbox-spec-plan.md`, `20260211-channel-inbox-outbox-impl-spec-plan.md`
 
 ---
 

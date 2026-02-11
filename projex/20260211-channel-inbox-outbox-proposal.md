@@ -3,7 +3,7 @@
 > **Status:** Draft
 > **Created:** 2026-02-11
 > **Author:** Agent
-> **Related Projex:** (none)
+> **Related Projex:** `20260211-channel-inbox-outbox-redteam.md`, `20260211-channel-inbox-outbox-spec-plan.md`, `20260211-channel-inbox-outbox-impl-spec-plan.md`
 
 ---
 
@@ -400,11 +400,11 @@ Context.cleanupChannels():
 - [x] **Outbox cleanup on context exit**: Outbox values are discarded on context termination ("data belongs to the context"). Hub deregistration and waited-pusher pruning included in `cleanupChannels()` flow.
 - [x] **Spec wording**: `spec.md` **requires amendment** — adding `wait` and `timeout` named parameters to Channel.Push. The channel type definition needs minor clarification that "underlying data structure" includes the routing hub.
 - [x] **Timeout on waited push**: Yes — `timeout` parameter added to `/push`, usable alongside `wait: true`.
-- [x] **Hub participation tracking**: Hub maintains a `participants` dictionary populated by `/open`. Pull scans only participants.
+- [x] **Hub participation tracking**: Hub maintains a `participants` dictionary. Contexts are auto-registered on first `/push` or `/pull` (outbox/inbox created lazily). Pull scans only participants.
 - [x] **Close flow**: Wakes both blocked pullers **and** waited pushers with close error.
-- [x] **Interaction with `[clone]`**: Outboxes/inboxes are **not** cloned. A forked context starts with empty channel state and must `/open` channels it wants to use. Cloning channel buffers mid-flight is unlikely to be expected behavior.
+- [x] **Interaction with `[clone]`**: Outboxes/inboxes are **not** cloned. A forked context starts with empty channel state. It will be auto-registered with hubs on first push/pull. Cloning channel buffers mid-flight is unlikely to be expected behavior.
 - [x] **Default wait value**: `wait: true` (blocking) is the default. ZOH is a brand new language with no existing scripts to break — backward compatibility is not a concern.
-- [x] **Must `/open` before `/push` or `/pull`?** Yes — only `/open` creates outbox/inbox and registers with the hub. `/push` and `/pull` to an unopened channel should error.
+- [x] **Must `/open` before `/push` or `/pull`?** No — `/open` only creates/re-creates channels. Contexts are auto-registered with the hub (outbox/inbox created) on first `/push` or `/pull`.
 
 ---
 
