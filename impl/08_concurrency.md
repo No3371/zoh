@@ -291,101 +291,103 @@ CallDriver.execute(call, context):
 
 ## Channels
 
-Channels are named FIFO queues for inter-context communication.
+Channels are named FIFO pipes for inter-context communication, routed through hubs.
 
 ### Channel Properties
 
 | Property | Description |
 |----------|-------------|
 | Name | Unique identifier (case-insensitive) |
-| Type | Unbounded FIFO queue |
-| Scope | Global across all contexts |
-| Safety | Thread-safe, concurrent access |
+| Type | Unbounded FIFO with per-context outboxes |
+| Scope | Global across all contexts (via hub) |
+| Safety | Thread-safe, concurrent access. All hub and outbox/inbox operations must use concurrency-safe data structures. |
 
-### Runtime Channel Storage
+### Channel Hub Registry
 
 ```
-ChannelManager:
-  channels: Map<string, Channel>
+ChannelHubRegistry:
+  hubs: Map<string, ChannelHub>
   
-  get(name: string): Channel
+  get(name: string): ChannelHub?
+    return hubs.get(name.toLowerCase())
+  
+  getOrCreate(name: string): ChannelHub
     name = name.toLowerCase()
-    if name not in channels:
-      channels[name] = Channel.new()
-    return channels[name]
+    if name not in hubs:
+      hubs[name] = ChannelHub.new(name)
+    return hubs[name]
   
-  exists(name: string): bool
-    return name.toLowerCase() in channels
+  recreate(name: string): ChannelHub
+    name = name.toLowerCase()
+    old = hubs.get(name)
+    newHub = ChannelHub.new(name)
+    if old != null:
+      newHub.generation = old.generation + 1
+    hubs[name] = newHub
+    return newHub
   
   remove(name: string)
-    channels.remove(name.toLowerCase())
-  
-  close(name: string)
-    name = name.toLowerCase()
-    if name in channels:
-      channels[name].close()
-      channels.remove(name)
+    hubs.remove(name.toLowerCase())
+```
 
-Channel:
-  queue: ConcurrentQueue<Value>
+### Channel Hub
+
+```
+ChannelHub:
+  name: string
+  generation: int
   closed: bool
-  generation: int          # Incremented on each close to detect stale references
-  waiters: List<Waiter>    # Blocked pullers waiting for values
-  
-  push(value: Value)
-    if closed: error("closed", "Channel closed")
-    queue.enqueue(value)
-    notifyWaiters()        # Wake one waiter if any
-  
-  # Returns value or throws error
-  pull(timeout: double?, expectedGeneration: int): Value?
-    if closed: error("closed", "Channel closed")
-    if generation != expectedGeneration: error("stale", "Channel stale")
-    
-    if timeout == null:
-      result = queue.dequeueBlocking()
-      if result is CloseSignal: error("closed", "Channel closed")
-      return result
-    else:
-      result = queue.dequeueWithTimeout(timeout)
-      if result is TimeoutSignal: return Nothing
-      if result is CloseSignal: error("closed", "Channel closed")
-      return result
-  
-  close()
-    closed = true
-    generation++
-    # Instantly notify ALL blocked pullers
-    for waiter in waiters:
-      waiter.notifyClose()  # Wake with close signal, not a value
-    waiters.clear()
-  
-  count(): int
-    return queue.size
+  sequenceCounter: int                                     # Monotonic, incremented on each push
+  participants: Map<contextId, ParticipantState>            # Auto-registered on first push/pull (or /open)
+  waitingPullers: Queue<Context>                            # Contexts blocked on /pull (FIFO)
+  waitingPushers: Queue<(Context, int)>                     # Contexts blocked on waited push (context, seqNum)
 
-  # Non-blocking check
-  hasValue(): bool
-    return !queue.isEmpty()
+ParticipantState:
+  context: Context
+  outbox: Queue<(Value, int)>                              # (value, sequenceNumber) pairs
+  inbox: Queue<Value>                                      # Values dispatched to this context
+```
+
+### Helper: ensureParticipant
+
+```
+ensureParticipant(hub, context, channelName):
+    if context.id not in hub.participants:
+        if channelName not in context.outboxes:
+            context.outboxes[channelName] = Queue.new()
+        if channelName not in context.inboxes:
+            context.inboxes[channelName] = Queue.new()
+        hub.participants[context.id] = ParticipantState {
+            context: context,
+            outbox: context.outboxes[channelName],
+            inbox: context.inboxes[channelName]
+        }
 ```
 
 > [!IMPORTANT]
-> **Close Notification**: Closing a channel MUST instantly wake all blocked pullers.
-> Pullers must receive an error, not a nothing, to distinguish from timeout.
-> 
-> **Generation IDs**: Each channel has a generation number. Pullers should check
-> generation before/after blocking to ensure they don't accidentally pull from
-> a NEW channel with the same name that was created after the old one closed.
->
+> **Concurrency safety**: All hub fields and outbox/inbox queues must be implemented with concurrency-safe data structures (e.g., concurrent collections, lock-guarded access). The scan-and-dequeue in the pull flow must be atomic — concurrent pullers must not race on the same outbox entry.
+
+> [!IMPORTANT]
+> **Close Notification**: Closing a channel MUST instantly wake all blocked pullers AND waited pushers.
+> Pullers receive an error, not a nothing, to distinguish from timeout.
+> Waited pushers receive an error to unblock.
+
 > [!NOTE]
-> When `/open` re-creates a closed channel, the new channel has `generation = oldGeneration + 1`.
-> This ensures that any `<channel>` references captured before the close will fail on the
-> generation check during `/pull`.
+> **Generation IDs**: Each hub has a generation number. Pullers and waited pushers should check
+> generation before/after blocking to ensure they don't accidentally operate on
+> a NEW channel with the same name created after the old one closed.
+>
+> When `/open` re-creates a closed channel, the new hub has `generation = oldGeneration + 1`.
+
+> [!NOTE]
+> **Clone behavior**: When forking with `[clone]`, outboxes and inboxes are NOT cloned.
+> A forked context starts with empty channel state. It will be auto-registered with hubs on first push/pull.
 
 ---
 
 ## Open
 
-**Purpose**: Create a new channel or re-create a closed channel.
+**Purpose**: Create a new channel or re-create a closed channel. Also registers the calling context with the hub as a side effect.
 
 ### Signature
 ```
@@ -394,9 +396,11 @@ Channel:
 
 ### Behavior
 
-- Creates a new channel if it doesn't exist
-- If channel exists and is closed, creates a new channel with incremented generation
-- If channel exists and is open, no-op (returns success)
+- Creates a new hub if it doesn't exist
+- If hub exists and is closed, creates a new hub with incremented generation
+- If hub exists and is open, no-op for the hub
+- Initializes context-local outbox and inbox for this channel (idempotent)
+- Registers context with hub participation dictionary (idempotent)
 
 ### Implementation
 
@@ -409,16 +413,23 @@ OpenDriver.execute(call, context):
     
     channelName = channelRef.name
     
-    # Check if channel exists
-    if context.runtime.channels.exists(channelName):
-        channel = context.runtime.channels.get(channelName)
-        if channel.closed:
-            # Create new channel with incremented generation
-            context.runtime.channels.remove(channelName)
-            context.runtime.channels.create(channelName)
-    else:
-        # Create new channel
-        context.runtime.channels.create(channelName)
+    hub = context.runtime.channelHubs.getOrCreate(channelName)
+    if hub.closed:
+        hub = context.runtime.channelHubs.recreate(channelName)
+    
+    # Initialize context's outbox and inbox for this channel (idempotent)
+    if channelName not in context.outboxes:
+        context.outboxes[channelName] = Queue.new()
+    if channelName not in context.inboxes:
+        context.inboxes[channelName] = Queue.new()
+    
+    # Register context with hub participation dictionary (idempotent)
+    if context.id not in hub.participants:
+        hub.participants[context.id] = ParticipantState {
+            context: context,
+            outbox: context.outboxes[channelName],
+            inbox: context.inboxes[channelName]
+        }
     
     return ok()
 ```
@@ -427,23 +438,28 @@ OpenDriver.execute(call, context):
 
 ## Push
 
-**Purpose**: Add a value to a channel.
+**Purpose**: Add a value to a channel. Optionally block until consumed.
 
 ### Signature
 ```
-/push channel, value;
+/push channel, value, wait:bool?, timeout:seconds?;
 ```
 
 ### Behavior
 
-- Pushes value to existing open channel
-- **Errors if channel doesn't exist or is closed**
+- Auto-registers context with hub if not already a participant (lazy outbox/inbox creation)
+- Pushes value to the calling context's outbox for the channel
+- If a puller is waiting, delivers directly to puller's inbox (fast path — no blocking regardless of `wait`)
+- If `wait: true` (default), blocks until the value is consumed by a puller
+- If `wait: false`, returns immediately after enqueuing
+- `timeout` controls max wait time when `wait: true`; ignored when `wait: false`
 
 ### Diagnostics
 
 - Fatal: `invalid_type` — Parameter is not a channel
 - Error: `not_found` — Channel does not exist
-- Error: `closed` — Channel is closed
+- Error: `closed` — Channel is closed, or closed while waiting
+- Info: `timeout` — Push timed out before value was consumed (waited push only)
 
 ### Implementation
 
@@ -451,23 +467,47 @@ OpenDriver.execute(call, context):
 PushDriver.execute(call, context):
     channelRef = resolve(call.params[0], context)
     value = resolve(call.params[1], context)
+    wait = getNamedParam(call, "wait") ?? true         # default: blocking
+    timeout = getNamedParam(call, "timeout")            # optional, double or null
     
     if channelRef is not ChannelValue:
         return fatal("invalid_type", "Expected channel, got: " + channelRef.getType())
     
     channelName = channelRef.name
     
-    # Check if channel exists
-    if not context.runtime.channels.exists(channelName):
-        return error("not_found", "Channel does not exist: " + channelName)
+    hub = context.runtime.channelHubs.get(channelName)
+    if hub == null:
+        return error("not_found", "Channel not found: " + channelName)
+    if hub.closed:
+        return error("closed", "Channel closed: " + channelName)
     
-    channel = context.runtime.channels.get(channelName)
+    # Auto-register context if not yet a participant
+    ensureParticipant(hub, context, channelName)
     
-    # Check if channel is closed
-    if channel.closed:
-        return error("closed", "Cannot push to closed channel: " + channelName)
+    seq = hub.sequenceCounter++
     
-    channel.push(value)
+    # Fast path: if a puller is waiting, deliver directly (skip outbox)
+    if hub.waitingPullers.hasNext():
+        target = hub.waitingPullers.dequeue()
+        targetState = hub.participants[target.id]
+        targetState.inbox.enqueue(value)
+        target.state = RUNNING
+        target.waitCondition = null
+        return ok()    # Value consumed immediately — no blocking needed
+    
+    # No puller waiting — park value in pusher's outbox
+    participantState = hub.participants[context.id]
+    participantState.outbox.enqueue((value, seq))
+    
+    if wait:
+        # Block until this specific value is consumed
+        hub.waitingPushers.enqueue((context, seq))
+        context.state = WAITING_CHANNEL_PUSH
+        context.waitCondition = ChannelPushWaitCondition {
+            channelName, seq, generation: hub.generation,
+            timeout: timeout != null ? resolve(timeout, context).toDouble() : null,
+            startTime: now()
+        }
     
     return ok()
 ```
@@ -485,9 +525,11 @@ PushDriver.execute(call, context):
 
 ### Behavior
 
-- Blocks until value is available
-- With timeout: returns a nothing if timeout expires
-- **Throws error if channel doesn't exist or is closed**
+- Auto-registers context with hub if not already a participant (lazy outbox/inbox creation)
+- Checks own inbox first (previously dispatched values)
+- If inbox empty, scans all participating outboxes for the value with lowest sequence number
+- Wakes blocked waited pusher if the consumed value was from a waited push
+- Blocks if no values available anywhere
 
 ### Implementation
 
@@ -501,25 +543,51 @@ PullDriver.execute(call, context):
     
     channelName = channelRef.name
     
-    # Check if channel exists
-    if not context.runtime.channels.exists(channelName):
-        return error("not_found", "Channel does not exist: " + channelName)
+    hub = context.runtime.channelHubs.get(channelName)
+    if hub == null:
+        return error("not_found", "Channel not found: " + channelName)
+    if hub.closed:
+        return error("closed", "Channel closed: " + channelName)
     
-    channel = context.runtime.channels.get(channelName)
+    # Auto-register context if not yet a participant
+    ensureParticipant(hub, context, channelName)
     
-    # Check if channel is closed
-    if channel.closed:
-        return error("closed", "Cannot pull from closed channel: " + channelName)
+    # Check own inbox first (previously dispatched values)
+    myState = hub.participants[context.id]
+    if myState.inbox.hasValue():
+        return ok(myState.inbox.dequeue())
     
-    # Set blocking state
+    # Scan participating outboxes — find lowest sequence number
+    # NOTE: This scan-and-dequeue MUST be atomic (hub-level lock)
+    bestSource = null
+    bestSeq = MAX_INT
+    for (ctxId, state) in hub.participants:
+        if state.outbox.hasValue():
+            (_, seq) = state.outbox.peek()
+            if seq < bestSeq:
+                bestSeq = seq
+                bestSource = state
+    
+    if bestSource != null:
+        (value, consumedSeq) = bestSource.outbox.dequeue()
+        
+        # Wake the pusher if they're blocked on a waited push for this value
+        if hub.waitingPushers.contains(bestSource.context, consumedSeq):
+            hub.waitingPushers.remove(bestSource.context, consumedSeq)
+            bestSource.context.state = RUNNING
+            bestSource.context.waitCondition = null
+        
+        return ok(value)
+    
+    # Nothing available — block
+    hub.waitingPullers.enqueue(context)
     context.state = WAITING_CHANNEL
     context.waitCondition = ChannelWaitCondition {
         channelName: channelName,
         timeout: timeout != null ? resolve(timeout, context).toDouble() : null,
-        generation: channel.generation,
+        generation: hub.generation,
         startTime: now()
     }
-    
     return ok()
 ```
 
@@ -545,17 +613,32 @@ CloseDriver.execute(call, context):
     
     channelName = channelRef.name
     
-    # Check if channel exists
-    if not context.runtime.channels.exists(channelName):
+    hub = context.runtime.channelHubs.get(channelName)
+    if hub == null:
         return error("not_found", "Channel does not exist: " + channelName)
-    
-    channel = context.runtime.channels.get(channelName)
-    
-    # Check if already closed
-    if channel.closed:
+    if hub.closed:
         return error("closed", "Channel already closed: " + channelName)
     
-    context.runtime.channels.close(channelName)
+    hub.closed = true
+    hub.generation++
+    
+    # Wake all blocked pullers with close error
+    while hub.waitingPullers.hasNext():
+        waiter = hub.waitingPullers.dequeue()
+        waiter.state = RUNNING
+        waiter.lastDiagnostics = [Diagnostic(ERROR, "closed", "Channel closed")]
+        waiter.waitCondition = null
+    
+    # Wake all blocked waited pushers with close error
+    while hub.waitingPushers.hasNext():
+        (pusher, seq) = hub.waitingPushers.dequeue()
+        pusher.state = RUNNING
+        pusher.lastDiagnostics = [Diagnostic(ERROR, "closed", "Channel closed")]
+        pusher.waitCondition = null
+    
+    # Hub is NOT removed — kept with closed=true so subsequent
+    # push/pull returns "closed" (not "not_found"), and generation
+    # is preserved for /open re-creation.
     return ok()
 ```
 
@@ -690,6 +773,8 @@ Context.clone():
          ├──── /sleep ───► Sleeping ───► Running
          │
          ├──── /pull (blocking) ───► Waiting ───► Running
+         │
+         ├──── /push (waited) ───► Waiting ───► Running
          │
          ├──── /wait ───► Waiting ───► Running
          │

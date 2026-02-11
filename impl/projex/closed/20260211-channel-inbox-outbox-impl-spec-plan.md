@@ -1,6 +1,8 @@
 # Impl Spec Channel Inbox/Outbox Rewrite Plan
 
-> **Status:** In Progress
+> **Status:** Complete
+> **Completed:** 2026-02-12
+> **Walkthrough:** [20260212-channel-inbox-outbox-impl-spec-walkthrough.md](file:///s:/repos/zoh/impl/projex/closed/20260212-channel-inbox-outbox-impl-spec-walkthrough.md)
 > **Created:** 2026-02-11
 > **Author:** Agent
 > **Source:** `20260211-channel-inbox-outbox-proposal.md`, `20260211-channel-inbox-outbox-redteam.md`

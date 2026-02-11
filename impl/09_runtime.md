@@ -31,8 +31,8 @@ The runtime is the top-level system that manages contexts, coordinates execution
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                            │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                      CHANNEL MANAGER                                 │   │
-│  │  <channel1> → Queue, <channel2> → Queue, ...                         │   │
+│  │                    CHANNEL HUB REGISTRY                              │   │
+│  │  <channel1>:gen → Hub, <channel2>:gen → Hub, ...                     │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                            │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
@@ -67,7 +67,7 @@ Runtime:
   # State
   stories: Map<string, CompiledStory>
   contexts: List<Context>
-  channels: ChannelManager
+  channelHubs: ChannelHubRegistry
   storage: PersistentStorage
   signals: SignalManager
   
@@ -330,6 +330,10 @@ Context:
   contextVars: Map<string, Variable>
   flags: Map<string, Value>
   
+  # Channel storage
+  outboxes: Map<string, Queue<(Value, int)>>   # channel → queue of (value, seqNum)
+  inboxes: Map<string, Queue<Value>>           # channel → queue of received values
+  
   # Execution state
   lastReturnValue: Value
   lastDiagnostics: List<Diagnostic>
@@ -339,15 +343,16 @@ Context:
   contextDefers: Stack<CompiledVerbCall>
   
   # Waiting state
-  waitCondition: WaitCondition?   # For /pull, /wait, /sleep
+  waitCondition: WaitCondition?   # For /pull, /push, /wait, /sleep
 
 ContextState:
-  RUNNING           # Actively executing
-  WAITING_CHANNEL   # Blocked on /pull
-  WAITING_MESSAGE   # Blocked on /wait
-  WAITING_CONTEXT   # Blocked on /call
-  SLEEPING          # Blocked on /sleep
-  TERMINATED        # Finished execution
+  RUNNING                # Actively executing
+  WAITING_CHANNEL        # Blocked on /pull
+  WAITING_CHANNEL_PUSH   # Blocked on waited /push
+  WAITING_MESSAGE        # Blocked on /wait
+  WAITING_CONTEXT        # Blocked on /call
+  SLEEPING               # Blocked on /sleep
+  TERMINATED             # Finished execution
 ```
 
 ---
@@ -403,8 +408,32 @@ Context.terminate():
     executeStoryDefers()
     executeContextDefers()
     
+    # Channel cleanup
+    cleanupChannels()
+    
     state = TERMINATED
     runtime.removeContext(this)
+
+Context.cleanupChannels():
+    # Deregister from all hub participation dictionaries
+    for channelName in outboxes.keys():
+        hub = runtime.channelHubs.get(channelName)
+        if hub != null:
+            hub.participants.remove(this.id)
+    
+    # Discard remaining outbox values (data belongs to the context)
+    for channelName in outboxes.keys():
+        outboxes[channelName].clear()
+    
+    # Discard unread inbox values
+    for channelName in inboxes.keys():
+        inboxes[channelName].clear()
+    
+    # Prune any waited-pusher entries for this context
+    for channelName in outboxes.keys():
+        hub = runtime.channelHubs.get(channelName)
+        if hub != null:
+            hub.waitingPushers.removeByContext(this.id)
 ```
 
 ---
@@ -416,7 +445,8 @@ Some verbs block context execution:
 | Verb | Block Condition | Unblock Condition |
 |------|-----------------|-------------------|
 | `/sleep` | Always | Timer expires |
-| `/pull` | Channel empty | Value available or timeout |
+| `/push` | `wait: true` and no puller | Value consumed, timeout, or channel closed |
+| `/pull` | Channel empty | Value available, timeout, or channel closed |
 | `/wait` | No message | Message received or timeout |
 | `/call` | Forked context | Forked context terminates |
 
@@ -445,14 +475,40 @@ Runtime.tick():
                     context.waitCondition = null
             
             WAITING_CHANNEL:
-                channel = channels.get(context.waitCondition.channelName)
-                if channel.hasValue() or context.waitCondition.isTimedOut():
-                    # Handle result with diagnostics even on resumption
-                    result = channel.pull(context.waitCondition.timeout, context.waitCondition.generation)
+                hub = channelHubs.get(context.waitCondition.channelName)
+                if hub == null:
                     context.state = RUNNING
-                    context.lastReturnValue = result.value
-                    context.lastDiagnostics = result.diagnostics
+                    context.lastDiagnostics = [Diagnostic(ERROR, "not_found", "Channel not found")]
                     context.waitCondition = null
+                elif hub.closed:
+                    context.state = RUNNING
+                    context.lastDiagnostics = [Diagnostic(ERROR, "closed", "Channel closed")]
+                    context.waitCondition = null
+                elif context.waitCondition.isTimedOut():
+                    hub.waitingPullers.remove(context)
+                    context.state = RUNNING
+                    context.lastReturnValue = Nothing
+                    context.lastDiagnostics = [Diagnostic(INFO, "timeout", "Pull timed out")]
+                    context.waitCondition = null
+                # Otherwise: still waiting — pusher will wake us via PushDriver fast path
+
+            WAITING_CHANNEL_PUSH:
+                hub = channelHubs.get(context.waitCondition.channelName)
+                if hub == null:
+                    context.state = RUNNING
+                    context.lastDiagnostics = [Diagnostic(ERROR, "not_found", "Channel not found")]
+                    context.waitCondition = null
+                elif hub.closed:
+                    context.state = RUNNING
+                    context.lastDiagnostics = [Diagnostic(ERROR, "closed", "Channel closed")]
+                    context.waitCondition = null
+                elif context.waitCondition.isTimedOut():
+                    # Timeout — remove from waiting pushers, value stays in outbox
+                    hub.waitingPushers.remove(context, context.waitCondition.seq)
+                    context.state = RUNNING
+                    context.lastDiagnostics = [Diagnostic(INFO, "timeout", "Push timed out")]
+                    context.waitCondition = null
+                # Otherwise: still waiting — puller will wake us via PullDriver
 
             WAITING_CONTEXT:
                 targetCtx = contexts.find(c => c.id == context.waitCondition.targetContextId)
