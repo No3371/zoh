@@ -4,9 +4,9 @@
 > **Created:** 2026-02-08
 > **Author:** Antigravity (on behalf of User)
 > **Related Projex:**
->   - [Spec Plan](file:///s:/repos/zoh/projex/20260208-checkpoint-type-contract-spec-plan.md)
->   - [Impl Spec Plan](file:///s:/repos/zoh/impl/projex/20260208-checkpoint-type-contract-impl-spec-plan.md)
->   - [C# Impl Plan](file:///s:/repos/zoh/c%23/projex/20260208-checkpoint-type-contract-impl-plan.md)
+>   - [Spec Plan](projex/20260208-checkpoint-type-contract-spec-plan.md)
+>   - [Impl Spec Plan](impl/projex/20260208-checkpoint-type-contract-impl-spec-plan.md)
+>   - [C# Impl Plan](c%23/projex/20260208-checkpoint-type-contract-impl-plan.md)
 
 ---
 

@@ -1,7 +1,7 @@
 # Walkthrough: Checkpoint Type Contract Spec Update
 
 > **Status:** Closed
-> **Project:** [Plan](file:///s:/repos/zoh/projex/20260208-checkpoint-type-contract-spec-plan.md)
+> **Project:** [Plan](projex/20260208-checkpoint-type-contract-spec-plan.md)
 > **Branch:** `projex/20260208-checkpoint-type-contract-spec-plan`
 
 ## Changes

@@ -1,10 +1,10 @@
 # Update Spec with Checkpoint Type Contracts
 
 > **Status:** Closed
-> **Walkthrough:** [Walkthrough](file:///s:/repos/zoh/projex/closed/20260208-checkpoint-type-contract-spec-walkthrough.md)
+> **Walkthrough:** [Walkthrough](projex/closed/20260208-checkpoint-type-contract-spec-walkthrough.md)
 > **Created:** 2026-02-08
 > **Author:** Antigravity (on behalf of User)
-> **Source:** [Proposal](file:///s:/repos/zoh/projex/20260208-checkpoint-type-contract-proposal.md)
+> **Source:** [Proposal](projex/20260208-checkpoint-type-contract-proposal.md)
 > **Related Projex:** None
 
 ---
@@ -47,7 +47,7 @@ The current checkpoint definition in `spec.md` only documents variable existence
 
 ### Dependencies
 - **Requires:** Proposal acceptance (Completed).
-- **Blocks:** [C# Implementation Plan](file:///s:/repos/zoh/c#/projex/20260208-checkpoint-type-contract-impl-plan.md)
+- **Blocks:** [C# Implementation Plan](c#/projex/20260208-checkpoint-type-contract-impl-plan.md)
 
 ### Constraints
 - Must align exactly with the accepted proposal.

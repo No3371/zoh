@@ -6,7 +6,7 @@ I have implemented the mandatory whitespace trimming for the `/parse` verb in th
 
 ### Specification Updates
 
-#### [spec.md](file:///s:/repos/zoh/spec.md)
+#### [spec.md](spec.md)
 Added a mandatory trimming rule to the `/parse` verb definition:
 ```diff
 -A parse verb returns a value parsed from a string.
@@ -15,7 +15,7 @@ Added a mandatory trimming rule to the `/parse` verb definition:
 
 ### Implementation Guide Updates
 
-#### [06_core_verbs.md](file:///s:/repos/zoh/impl/06_core_verbs.md)
+#### [06_core_verbs.md](impl/06_core_verbs.md)
 Updated the `ParseDriver.execute` pseudo-code to reflect the trimming requirement:
 ```diff
  ParseDriver.execute(call, context):

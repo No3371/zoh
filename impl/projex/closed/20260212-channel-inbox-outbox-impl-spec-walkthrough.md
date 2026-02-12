@@ -2,7 +2,7 @@
 
 > **Execution Date:** 2024-02-12
 > **Completed By:** Antigravity
-> **Source Plan:** [20260211-channel-inbox-outbox-impl-spec-plan.md](file:///s:/repos/zoh/impl/projex/20260211-channel-inbox-outbox-impl-spec-plan.md)
+> **Source Plan:** [20260211-channel-inbox-outbox-impl-spec-plan.md](impl/projex/20260211-channel-inbox-outbox-impl-spec-plan.md)
 > **Result:** Success
 
 ---
