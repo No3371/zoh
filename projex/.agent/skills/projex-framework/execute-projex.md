@@ -68,6 +68,8 @@ Before starting execution:
 
 ## WORKFLOW STEPS
 
+**GATE: No file changes, no edits, no code modifications until the ephemeral branch is created and verified (step 1.2). Any change made on the base branch contaminates it and defeats isolation.**
+
 ### 1. INITIALIZE EXECUTION
 
 1. **Record the base branch** — Before branching, record the current branch name. Close-projex needs this to merge back to the correct target.
@@ -77,11 +79,13 @@ git branch --show-current
 # e.g. "main", "develop", "feature/auth" — this is the base branch
 ```
 
-2. **Create ephemeral branch** — Branch from current HEAD for isolated execution:
+2. **Create ephemeral branch and verify** — Branch from current HEAD. Confirm the switch before proceeding.
 
 ```bash
-# Branch naming: projex/{yyyymmdd}-{plan-name}
-git checkout -b projex/20260126-database-refactor
+git checkout -b projex/{yyyymmdd}-{plan-name}
+# verify output: "Switched to a new branch 'projex/...'"
+git branch --show-current
+# verify output matches the ephemeral branch name — ONLY THEN proceed
 ```
 
 3. **Update plan status** — Change to `In Progress`
@@ -129,7 +133,7 @@ For each step in the plan:
 After each step that produces file changes, commit in logical atomic units:
 
 ```bash
-# Stage each changed file by explicit path — never use `git add .` or directories
+# Stage each changed file by explicit path — never use `git add .`, `git add -A`, `git add -u`, or directories
 git add path/to/changed-file1.ext
 git add path/to/changed-file2.ext
 git commit -m "projex: step N - [brief description]"
@@ -177,7 +181,8 @@ If a step fails:
    - **Fixable within scope:** Fix and document
    - **Requires scope change:** Stop, consult user
    - **Plan is wrong:** Stop, mark plan for review
-3. **Document** — What failed, root cause, resolution or blocker
+3. **Clean up resources** — Before stopping or consulting the user, tear down any services/processes started during execution (Docker containers, dev servers, etc.). Don't leave resources running while waiting for decisions.
+4. **Document** — What failed, root cause, resolution or blocker
 
 ### 5. COMPLETE EXECUTION
 
@@ -189,7 +194,9 @@ After all steps:
 
 3. **Final review** — Review all actions taken, check for anything left incomplete
 
-4. **Update plan status** — Mark as `Complete` if successful, `Blocked` if issues remain
+4. **Clean up resources** — Tear down anything started during execution: stop Docker containers/compose stacks, kill dev servers, close database connections, remove temporary files/directories, etc. If a resource was running before execution began (pre-existing), leave it alone. Log what was cleaned up.
+
+5. **Update plan status** — Mark as `Complete` if successful, `Blocked` if issues remain
 
 **Note:** Do not move the plan file yet — file relocation to `projex/closed/` happens during `/close-projex.md`
 
@@ -217,6 +224,12 @@ After all steps:
 - Stop early if fundamental issues arise
 - Don't compound problems
 - Escalate blockers promptly
+
+### Clean Up After Yourself
+- Any process/service started during execution must be stopped before execution ends — whether it succeeds, fails, or is abandoned
+- Docker containers, compose stacks, dev servers, database instances, background processes, temporary files — all must be torn down
+- If unsure whether something was pre-existing, check before killing it
+- Log all cleanup actions in the execution log
 
 ---
 
