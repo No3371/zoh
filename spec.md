@@ -1784,7 +1784,7 @@ A random value between min and max. Depends on the type of min and max.
 
 ### Core.Parse
 
-A parse verb returns a value parsed from a string.
+A parse verb returns a value parsed from a string. The verb first trims any leading and trailing whitespace from the input string.
 
 #### Parameters
 - `value`: The value to parse. Accept `string`/`*string`.

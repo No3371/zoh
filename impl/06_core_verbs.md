@@ -636,7 +636,7 @@ RandDriver.execute(call, context):
 
 ```
 ParseDriver.execute(call, context):
-    str = resolve(call.params[0], context).toString()
+    str = resolve(call.params[0], context).toString().trim()
     
     if call.params.length > 1:
         targetType = resolve(call.params[1], context).toString()
