@@ -1,6 +1,8 @@
 # Plan: MUD Server End-to-End Validation Scenario Spec
 
-> **Status:** Ready
+> **Status:** Complete
+> **Completed:** 2026-02-15
+> **Walkthrough:** [20260215-mud-server-scenario-spec-walkthrough.md](../closed/20260215-mud-server-scenario-spec-walkthrough.md)
 > **Created:** 2026-02-15
 > **Author:** Antigravity
 > **Source:** Direct request (via `explore-projex` findings)

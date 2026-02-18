@@ -1699,14 +1699,14 @@ The value of the variable after the decrease. Integer or double.
 Debug verbs make the runtime emit a diagnostic message.
 
 #### Parameters
-- `message`: The message to emit. Accept `"string"`, `*"string"`, `` `expr` ``, or `` *`expr` ``. In case of reference, the value is used. In case of `` `expr` ``, the expression is evaluated.
+- `message`: The message to emit. Accept `"string"`, `*"string"`, `` `expr` ``, or `` *`expr` ``. In case of reference, the value is used. In case of string, the value is interpolated ONCE. In case of `` `expr` ``, the expression is evaluated.
 
 #### Returns
 A nothing.
 
 #### Examples
 ```
-/info `"Hello, world! {*user}!"`;
+/info "Hello, world! ${*user}!";
 /info `"Hello, world! " + *user + "!"`;
 /warning "Hello, world!";
 /error "Hello, world!";

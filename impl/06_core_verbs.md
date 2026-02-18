@@ -732,6 +732,10 @@ DebugDriver.execute(call, context):
     
     if message is ExpressionValue:
         message = evaluate(message, context)
+        
+    # Interpolate if string
+    if message is StringValue:
+        message = interpolate(message.value, context)
     
     severity = getSeverityFromVerbName(call.name)
     code = "debug_" + severity
