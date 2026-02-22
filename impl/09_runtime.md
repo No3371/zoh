@@ -184,12 +184,23 @@ VerbDriver:
   namespace: string?
   name: string
   priority: int
-  
+
   execute(call: CompiledVerbCall, context: Context): ExecutionResult
 
 ExecutionResult:
   value: Value                # Return value
   diagnostics: List<Diagnostic>
+  continuation: Continuation? # null = completed; non-null = context must yield
+
+# Describes WHAT the driver is waiting for.
+# The runtime decides HOW to fulfill it (tick-loop or async task).
+# Drivers MUST NOT set context.state or context.waitCondition directly.
+Continuation:
+  | Sleep       { durationMs: double }
+  | ChannelPull { channelName: string, generation: int, timeoutMs: double? }
+  | ChannelPush { channelName: string, seqNum: int, generation: int, timeoutMs: double? }
+  | Message     { messageName: string, timeoutMs: double? }
+  | Context     { contextId: string, inlineVars: List<VarRef> }
 ```
 
 ---
@@ -396,23 +407,64 @@ Context.run():
             lastDiagnostics.add(Diagnostic(FATAL, e.message))
             terminate()
             return
-        
-        # Check for state changes (blocking verbs set state)
-        if state != RUNNING:
-            return  # Will resume when unblocked
-        
+
+        # If driver returned a continuation, block and suspend
+        if result.continuation != null:
+            block(result.continuation)
+            return  # Will resume when continuation is fulfilled
+
         instructionPointer++
     
 Context.terminate():
     # Execute defers
     executeStoryDefers()
     executeContextDefers()
-    
+
     # Channel cleanup
     cleanupChannels()
-    
+
     state = TERMINATED
     runtime.removeContext(this)
+
+# Processes a Continuation returned by a driver.
+# Sets internal state/waitCondition and handles registrations (subscribe, enqueue).
+# This is the ONLY place context.state and context.waitCondition are set for blocking.
+Context.block(continuation: Continuation):
+    match continuation:
+        Sleep { durationMs }:
+            state = SLEEPING
+            waitCondition = SleepCondition { wakeTime: now() + durationMs }
+
+        ChannelPull { channelName, generation, timeoutMs }:
+            hub = runtime.channelHubs.get(channelName)
+            hub.waitingPullers.enqueue(this)
+            state = WAITING_CHANNEL
+            waitCondition = ChannelWaitCondition {
+                channelName, generation, startTime: now(),
+                timeout: timeoutMs
+            }
+
+        ChannelPush { channelName, seqNum, generation, timeoutMs }:
+            hub = runtime.channelHubs.get(channelName)
+            hub.waitingPushers.enqueue((this, seqNum))
+            state = WAITING_CHANNEL_PUSH
+            waitCondition = ChannelPushWaitCondition {
+                channelName, seq: seqNum, generation, startTime: now(),
+                timeout: timeoutMs
+            }
+
+        Message { messageName, timeoutMs }:
+            runtime.signals.subscribe(messageName, this)
+            state = WAITING_MESSAGE
+            waitCondition = MessageWaitCondition {
+                messageName, startTime: now(), timeout: timeoutMs
+            }
+
+        Context { contextId, inlineVars }:
+            state = WAITING_CONTEXT
+            waitCondition = ContextWaitCondition {
+                targetContextId: contextId, inlineVars
+            }
 
 Context.cleanupChannels():
     # Deregister from all hub participation dictionaries
@@ -455,17 +507,15 @@ Some verbs block context execution:
 ```
 SleepDriver.execute(call, context):
     seconds = resolve(call.params[0], context).toDouble()
-    
-    # Set blocking state
-    context.state = SLEEPING
-    context.waitCondition = SleepCondition { 
-        wakeTime: now() + seconds * 1000 
-    }
-    
-    # Runtime scheduler will resume when condition met
-    return ok()
 
-# In runtime scheduler:
+    # Declare blocking intent — runtime fulfills it via Context.block()
+    return ok(continuation: Sleep { durationMs: seconds * 1000 })
+
+# Context.block() translates the Continuation to internal state:
+#   state = SLEEPING
+#   waitCondition = SleepCondition { wakeTime: now() + durationMs }
+
+# In runtime scheduler (tick-loop model):
 Runtime.tick():
     for context in contexts:
         match context.state:
@@ -542,6 +592,43 @@ Runtime.tick():
         # Execute if running (including if just unblocked)
         if context.state == RUNNING:
             context.run()
+
+---
+
+## Execution Model Compatibility
+
+The `Continuation` type decouples **blocking intent** (declared by drivers via `ExecutionResult.continuation`) from **scheduling strategy** (chosen by the implementer). Drivers are written once and work under either model.
+
+### Cooperative Tick Model
+
+The host calls `runtime.tick()` periodically. On each tick, the runtime checks each blocked context's `waitCondition` and resumes those whose condition is met. Suitable for game engines and any host with a natural update loop.
+
+```
+# Host loop (game engine example):
+while running:
+    runtime.tick()
+    renderFrame()
+    sleepUntilNextFrame()
+```
+
+`Context.block()` populates `context.state` and `context.waitCondition`; `Runtime.tick()` reads them unchanged. No tick-loop logic changes are needed to adopt `Continuation`.
+
+### Async Task Model
+
+Each context runs as an async task. When a `Continuation` is returned, the runtime converts it to an awaitable and suspends the context task until fulfilled. No external tick loop required. Suitable for servers, bots, and cloud hosts.
+
+```
+# Continuation → awaitable mapping (illustrative):
+async fulfillContinuation(c: Continuation, context: Context): Value
+    match c:
+        Sleep { durationMs }      → await asyncSleep(durationMs); return nothing
+        ChannelPull { ... }       → return await channel.pullAsync(timeout)
+        ChannelPush { ... }       → await channel.awaitConsumedAsync(seq, timeout); return nothing
+        Message { messageName }   → return await signals.waitAsync(messageName, timeout)
+        Context { contextId }     → return await contexts.awaitTerminationAsync(contextId)
+```
+
+> **Note:** Multi-context parallelism (`/fork`) requires a scheduler under both models — either `tick()` advancing all contexts, or spawning a new async task per forked context. `Continuation` does not change this requirement.
 
 ---
 

@@ -270,14 +270,11 @@ CallDriver.execute(call, context):
     context.runtime.addContext(newContext)
     context.runtime.scheduleContext(newContext)
     
-    # Block parent until child done
-    context.state = WAITING_CONTEXT
-    context.waitCondition = ContextWaitCondition {
-        targetContextId: newContext.id,
+    # Block parent until child done — runtime handles state via Context.block()
+    return ok(continuation: Context {
+        contextId: newContext.id,
         inlineVars: shouldInline ? initVars : []
-    }
-    
-    return ok()
+    })
 ```
 
 ### Syntactic Sugar
@@ -500,15 +497,12 @@ PushDriver.execute(call, context):
     participantState.outbox.enqueue((value, seq))
     
     if wait:
-        # Block until this specific value is consumed
-        hub.waitingPushers.enqueue((context, seq))
-        context.state = WAITING_CHANNEL_PUSH
-        context.waitCondition = ChannelPushWaitCondition {
-            channelName, seq, generation: hub.generation,
-            timeout: timeout != null ? resolve(timeout, context).toDouble() : null,
-            startTime: now()
-        }
-    
+        # Block until this specific value is consumed — runtime handles enqueue + state
+        return ok(continuation: ChannelPush {
+            channelName, seqNum: seq, generation: hub.generation,
+            timeoutMs: timeout != null ? resolve(timeout, context).toDouble() * 1000 : null
+        })
+
     return ok()
 ```
 
@@ -579,16 +573,11 @@ PullDriver.execute(call, context):
         
         return ok(value)
     
-    # Nothing available — block
-    hub.waitingPullers.enqueue(context)
-    context.state = WAITING_CHANNEL
-    context.waitCondition = ChannelWaitCondition {
-        channelName: channelName,
-        timeout: timeout != null ? resolve(timeout, context).toDouble() : null,
-        generation: hub.generation,
-        startTime: now()
-    }
-    return ok()
+    # Nothing available — block; runtime handles enqueue + state via Context.block()
+    return ok(continuation: ChannelPull {
+        channelName, generation: hub.generation,
+        timeoutMs: timeout != null ? resolve(timeout, context).toDouble() * 1000 : null
+    })
 ```
 
 ---
@@ -661,16 +650,11 @@ WaitDriver.execute(call, context):
     name = resolve(call.params[0], context).toString()
     timeout = getNamedParam(call, "timeout")?.toDouble()
 
-    context.state = WAITING_MESSAGE
-    context.waitCondition = MessageWaitCondition {
+    # Runtime handles signals.subscribe + state via Context.block(Message {...})
+    return ok(continuation: Message {
         messageName: name,
-        timeout: timeout != null ? resolve(timeout, context).toDouble() : null,
-        startTime: now()
-    }
-    
-    context.runtime.signals.subscribe(name, context)
-    
-    return ok()
+        timeoutMs: timeout != null ? timeout * 1000 : null
+    })
 ```
 
 ### Signal
@@ -713,13 +697,8 @@ SleepDriver.execute(call, context):
         seconds = evaluate(seconds, context)
 
     duration = seconds.toDouble()
-    
-    context.state = SLEEPING
-    context.waitCondition = SleepCondition {
-        wakeTime: now() + duration * 1000
-    }
-    
-    return ok()
+
+    return ok(continuation: Sleep { durationMs: duration * 1000 })
 ```
 
 ---
