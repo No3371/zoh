@@ -1,10 +1,11 @@
 # Impl Spec: Scheduler-Agnostic Driver Blocking via Continuation
 
-> **Status:** Ready
+> **Status:** Complete
 > **Created:** 2026-02-22
 > **Author:** Agent
 > **Source:** Direct request — follow-up from `20260222-verb-driver-sync-eval.md`
 > **Related Projex:** `20260222-verb-driver-sync-eval.md`
+> **Execution Note:** Executed inline (plan approved then immediately applied in the same session, without an ephemeral branch). Changes committed directly to `main` in commit `33fb91d`. No separate execute-projex / close-projex cycle was run.
 
 ---
 
@@ -26,13 +27,13 @@ Drivers currently block by calling `context.state = SLEEPING` / `context.waitCon
 - Violates the principle that a result should fully describe the outcome of a call
 
 ### Success Criteria
-- [ ] `ExecutionResult` has an optional `continuation` field carrying a `Continuation` value
-- [ ] `Continuation` is a discriminated union covering all five blocking cases
-- [ ] No blocking driver pseudocode contains `context.state =` or `context.waitCondition =`
-- [ ] `Context.block(continuation)` handles all registrations (subscribe, enqueue) and internal state
-- [ ] Execution loop checks `result.continuation != null` (not `state != RUNNING`) as the yield signal
-- [ ] A new "Execution Model Compatibility" section explains tick-loop and async scheduler patterns
-- [ ] All existing tick-loop scheduler logic in `Runtime.tick()` is preserved and still correct
+- [x] `ExecutionResult` has an optional `continuation` field carrying a `Continuation` value
+- [x] `Continuation` is a discriminated union covering all five blocking cases
+- [x] No blocking driver pseudocode contains `context.state =` or `context.waitCondition =`
+- [x] `Context.block(continuation)` handles all registrations (subscribe, enqueue) and internal state
+- [x] Execution loop checks `result.continuation != null` (not `state != RUNNING`) as the yield signal
+- [x] A new "Execution Model Compatibility" section explains tick-loop and async scheduler patterns
+- [x] All existing tick-loop scheduler logic in `Runtime.tick()` is preserved and still correct
 
 ### Out of Scope
 - C# implementation changes
@@ -91,11 +92,11 @@ New section after `## Blocking Operations` explaining tick-loop and async-task p
 ## Verification Plan
 
 ### Acceptance Criteria
-- [ ] No `context.state =` or `context.waitCondition =` in driver pseudocode in `impl/08_concurrency.md` (except cross-context waking: `target.state = RUNNING`)
-- [ ] `Continuation` union has 5 variants matching the 5 blocking `ContextState` values
-- [ ] `Context.block()` covers all 5 variants and handles registrations
-- [ ] `Runtime.tick()` logic unchanged
-- [ ] `## Execution Model Compatibility` section present in `impl/09_runtime.md`
+- [x] No `context.state =` or `context.waitCondition =` in driver pseudocode in `impl/08_concurrency.md` (except cross-context waking: `target.state = RUNNING`)
+- [x] `Continuation` union has 5 variants matching the 5 blocking `ContextState` values
+- [x] `Context.block()` covers all 5 variants and handles registrations
+- [x] `Runtime.tick()` logic unchanged
+- [x] `## Execution Model Compatibility` section present in `impl/09_runtime.md`
 
 ---
 
