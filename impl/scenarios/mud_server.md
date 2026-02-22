@@ -121,3 +121,48 @@ A test runner parses the captured log and verifies the following. All counts are
 
 **Constraint:** the log must NOT contain any fatal-level diagnostic.
 **Rationale:** channel-close errors are non-fatal (Error level); all 10 players must reach their exit whether or not they received an announcement.
+
+---
+
+## Bonus Mode
+
+Replace the two lines marked below to run a scaled-up version that stresses the scheduler, channel hub, and context memory under serious concurrent load.
+
+### Script Changes
+
+```diff
+-*player_count <- 10;
++*player_count <- 500;
+
+-    /pull <completions>, timeout: 30;
++    /pull <completions>, timeout: 120;
+
+-/pull <announce>, timeout: 5; -> *welcome;
++/pull <announce>, timeout: 30; -> *welcome;
+```
+
+Everything else in the script is unchanged. The logic is parameterized on `*player_count` throughout.
+
+### Updated Test Harness Requirements
+
+- **Concurrent context support:** at least 503 live contexts (500 players + 1 broker + 1 setup).
+- **Global timeout:** at least 5 minutes.
+
+### Updated Assertions
+
+| Assertion | Standard | Bonus |
+|-----------|----------|-------|
+| Registrations (`"Broker: player N registered"`) | 10 | 500 |
+| Connected (`"Player N: connected."`) | 8 | 498 |
+| Missed (`"Player N: missed announcement."`) | 2 | 2 |
+| SUCCESS line | 1 | 1 |
+| Fatal errors | 0 | 0 |
+
+The missed count stays at 2 regardless of scale — the broker always pushes `player_count − 2` announcements.
+
+### What Bonus Mode Stresses
+
+- **Scheduler fairness**: 500+ contexts competing for CPU time; no player should starve before its push is served.
+- **Channel hub under load**: `<register>` handles 500 simultaneous rendezvous waiters; `<announce>` handles 500 simultaneous pullers receiving 498 messages and a close event.
+- **Context memory**: 500 independent variable stores created and destroyed within the test run.
+- **Completion channel throughput**: 500 fire-and-forget pushes to `<completions>` in rapid succession; setup must pull all 500 without missing any.
