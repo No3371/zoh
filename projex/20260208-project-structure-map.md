@@ -17,7 +17,7 @@ ZOH is an embedded scripting language for interactive storytelling where everyth
 
 ```
 S:\Repos\zoh/
-├── spec.md                         — Complete language specification (75KB, canonical reference)
+├── spec/                           — Complete language specification directory
 ├── expr.md                         — Expression grammar and evaluation rules
 ├── std_verbs.md                    — Standard verb definitions (variables, control flow, collections)
 ├── std_attributes.md               — Standard attribute definitions ([scope], [required], [resolve], etc.)
@@ -131,7 +131,7 @@ S:\Repos\zoh/
 
 | File | Purpose |
 |------|---------|
-| `spec.md` | **Canonical language specification** — Complete ZOH syntax, semantics, type system, and verb definitions (75KB) |
+| `spec/` | **Canonical language specification** — Complete ZOH syntax, semantics, type system, and verb definitions |
 | `expr.md` | **Expression grammar** — EBNF grammar for expressions, operator precedence, special forms |
 | `std_verbs.md` | **Standard verb reference** — Definitions for core verbs (set, get, if, loop, push, pull, etc.) |
 | `std_attributes.md` | **Attribute reference** — Standard attributes like [scope], [required], [resolve], [typed] |
@@ -184,4 +184,4 @@ S:\Repos\zoh/
 | Date | Author | Changes |
 |------|--------|---------|
 | 2026-02-08 | Claude Sonnet 4.5 | Initial map creation — surveyed entire repository structure, documented all major directories and key files |
-| 2026-02-12 | Antigravity | Revised map — updated spec.md size, added symlink details for CLAUDE.md/GEMINI.md, listed active projex items in c#/ and root directories. |
+| 2026-02-12 | Antigravity | Revised map — updated spec/ structure, added symlink details for CLAUDE.md/GEMINI.md, listed active projex items in c#/ and root directories. |

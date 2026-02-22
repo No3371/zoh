@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ZOH is an embedded scripting language for interactive storytelling. Everything in ZOH is a "verb" - characters `/converse`, scenes `/show`, music `/play`. Even core language features like variables (`/set`), conditionals (`/if`), and loops (`/while`) are verbs.
 
-**Key File/Dir**: `spec.md` (complete language spec), `expr.md` (expression grammar), `impl/` (implementation specs), `c#/` (C# runtime), `projex/` (repository for tasks/projects/proposals), `std_verbs.md` (standard verbs)
+**Key File/Dir**: `spec/` (complete language spec), `impl/` (implementation specs), `c#/` (C# runtime), `projex/` (repository for tasks/projects/proposals)
 
 ## C# Reference Implementation
 
@@ -237,11 +237,11 @@ Common attributes:
 ```zoh
 #embed "path/to/file.zoh";           :: Include file contents
 
-#macro NAME param1, param2;          :: Define macro
-/converse "|#param1#|";              :: Placeholder with |#name#| or |#name|default#|
-#macro;                              :: End macro
+|%MACRO_NAME%|                     :: Define macro
+/converse "|%0|";                    :: Placeholder with |%0| (positional) or |%| (auto-inc)
+|%MACRO_NAME%|                       :: End macro
 
-#expand NAME param1:"value";         :: Expand macro
+|%MACRO_NAME|value|%|                :: Expand macro
 ```
 
 ---

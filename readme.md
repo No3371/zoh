@@ -167,4 +167,4 @@ This example shows:
 ...
 
 
-Please refer to [spec.md](spec.md) for the language spec.
+Please refer to the [spec/](spec/) directory for the language spec.
