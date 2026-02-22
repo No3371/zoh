@@ -1,7 +1,7 @@
 # ZOH Repository Structure Map
 
 **Created**: 2026-02-08
-**Last Revised**: 2026-02-12
+**Last Revised**: 2026-02-22
 **Author**: Antigravity
 **Scope**: Repository-wide structural index and orientation guide
 
@@ -18,16 +18,21 @@ ZOH is an embedded scripting language for interactive storytelling where everyth
 ```
 S:\Repos\zoh/
 ├── spec/                           — Complete language specification directory
+│   ├── 0_basic.md                  — Fundamentals and syntax basics
+│   ├── 1_concepts.md               — Core concepts and types
+│   ├── 2_verbs.md                  — Verb definitions and execution
+│   ├── 3_runtime.md                — Runtime execution environment
+│   ├── std_attributes.md           — Standard attribute definitions ([scope], [required], etc.)
+│   ├── std_flags.md                — Runtime flag definitions
+│   ├── std_metadata.md             — Story metadata schema
+│   └── std_verbs.md                — Standard verb definitions (variables, control flow, etc.)
 ├── expr.md                         — Expression grammar and evaluation rules
-├── std_verbs.md                    — Standard verb definitions (variables, control flow, collections)
-├── std_attributes.md               — Standard attribute definitions ([scope], [required], [resolve], etc.)
-├── std_flags.md                    — Runtime flag definitions
-├── std_metadata.md                 — Story metadata schema
 ├── readme.md                       — Project readme with "At a Glance" example
 ├── intro.md                        — Narrative introduction comparing ZOH to Ink/Twine
 ├── AGENT.md                        — Agent/AI assistant instructions
 ├── CLAUDE.md                       — Symlink to AGENT.md
 ├── GEMINI.md                       — Symlink to AGENT.md
+├── _fluid_.md                      — The fluid memory for general global context/rules
 │
 ├── c#/                             — C# reference implementation
 │   ├── Zoh.sln                     — Visual Studio solution file
@@ -102,13 +107,9 @@ S:\Repos\zoh/
 │   ├── 20260208-parse-whitespace-trimming-plan.md
 │   ├── 20260208-project-structure-map.md
 │   ├── 20260208-remove-truthiness-proposal.md
-│   └── 20260208-verify-type-system.md
-│
-├── projects/                       — Legacy project tracking system
-│   ├── closed/                     — Archived specification and test projects (25+ completed items)
-│   ├── archived/                   — Older archived projects (18+ items)
-│   ├── feat-*.md                   — Active feature specifications
-│   └── (agent configs)             — Agent instruction files
+│   ├── 20260208-verify-type-system.md
+│   ├── 20260215-project-context-explore.md
+│   └── 20260222-verb-driver-sync-eval.md
 │
 ├── examples/                       — Example ZOH scripts
 │   ├── example_murder_mystery.zoh  — Interactive story example
@@ -117,9 +118,6 @@ S:\Repos\zoh/
 ├── discussions/                    — Design discussions and rationale documents
 │   ├── deep-think-NS-001-ambiguity.md  — Namespace ambiguity analysis
 │   └── why_not_break_and_continue.md   — Design decision rationale
-│
-├── review/                         — Code review and analysis documents (currently empty)
-├── reviews/                        — Code review archives (currently empty)
 │
 └── .vscode/                        — VS Code workspace settings
     └── settings.json
@@ -133,8 +131,7 @@ S:\Repos\zoh/
 |------|---------|
 | `spec/` | **Canonical language specification** — Complete ZOH syntax, semantics, type system, and verb definitions |
 | `expr.md` | **Expression grammar** — EBNF grammar for expressions, operator precedence, special forms |
-| `std_verbs.md` | **Standard verb reference** — Definitions for core verbs (set, get, if, loop, push, pull, etc.) |
-| `std_attributes.md` | **Attribute reference** — Standard attributes like [scope], [required], [resolve], [typed] |
+| `_fluid_.md` | **Fluid Memory** — Dynamic global context, user rules, and overarching constraints |
 | `readme.md` | **Project introduction** — "At a Glance" example showcasing parallel contexts and channels |
 | `intro.md` | **Design philosophy** — Narrative comparing ZOH to Ink/Twine, explaining design choices |
 | `AGENT.md` | **AI assistant instructions** — Project overview, build commands, conventions (symlinked to CLAUDE.md, GEMINI.md) |
@@ -185,3 +182,4 @@ S:\Repos\zoh/
 |------|--------|---------|
 | 2026-02-08 | Claude Sonnet 4.5 | Initial map creation — surveyed entire repository structure, documented all major directories and key files |
 | 2026-02-12 | Antigravity | Revised map — updated spec/ structure, added symlink details for CLAUDE.md/GEMINI.md, listed active projex items in c#/ and root directories. |
+| 2026-02-22 | Antigravity | Revised map — documented `spec/` directory refactoring, `_fluid_.md` addition, and removal of dead `projects/` and `review/` directories. |
