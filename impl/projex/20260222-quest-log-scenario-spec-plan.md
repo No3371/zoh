@@ -162,7 +162,7 @@ Quest Log Processor
     {"type": "fetch",   "item": "herb",    "xp": 40},
     {"type": "combat",  "enemy": "bandit", "xp": 80, "power": 2},
     {"type": "fetch",   "item": "scroll",  "xp": "INVALID"},
-    {"type": "deliver", "item": "herb",    "xp": 60},
+    {"type": "deliver", "item": "herb",    "xp": 60}
 ];
 
 :: Process each quest sequentially — /call blocks until each handler exits
@@ -210,9 +210,9 @@ Quest Log Processor
 :: Switch on quest type to obtain the handler verb, then execute it safely
 /get *q["type"]; -> *type;
 /switch/ *type
-    "fetch"   /call ?, "quest_fetch", *q;;
-    "combat"  /call ?, "quest_combat", *q;;
-    "deliver" /call ?, "quest_deliver", *q;;
+    "fetch"   /call ?, "quest_fetch", *q;
+    "combat"  /call ?, "quest_combat", *q;
+    "deliver" /call ?, "quest_deliver", *q;
 /; -> *handler;
 
 /if /any *handler;, /sequence/

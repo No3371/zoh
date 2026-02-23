@@ -197,7 +197,7 @@ A try verb executes a verb and downgrades any fatal diagnostics to error level, 
 #### Diagnostics
 The original fatal diagnostics are moved to the `error` list with their codes preserved. For example, if the inner verb returns `{fatal: ["invalid_type: ..."]}`, after `/try` the diagnostics become `{error: ["invalid_type: ..."]}`.
 
-Diagnostics from the `cache` verb (if provided) should be appended. Therefore, if the `catch` verb emit fatal diagnostics, the context still get terminated.
+Diagnostics from the `catch` verb (if provided) should be appended. Therefore, if the `catch` verb emit fatal diagnostics, the context still get terminated.
 
 #### Examples
 ```
