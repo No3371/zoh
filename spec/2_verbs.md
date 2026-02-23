@@ -1255,6 +1255,32 @@ A nothing.
 /fatal "Hello, world!";
 ```
 
+### Core.Assert
+
+An assert verb checks a condition and emits a fatal diagnostic with the given message if the condition is not met (falsy: `false` or `nothing`). If the condition is met (truthy: anything that is not falsy), no diagnostic is emitted.
+
+#### Named Parameters
+- `is`: Value to be compared to the subject. Optional. Default to `true`. Accept `any`. In case of reference, the value is used. In case of `` `expr` ``, it is evaluated.
+
+#### Parameters
+- `subject`: The condition to assert. Accept `any`. In case of reference, the value is used. In case of `` `expr` ``, it is evaluated. In case of `/verb`, the returned value is used.
+- `message`: The message to emit on failure. Accept `"string"`, `*"string"`, `` `expr` ``, or `` *`expr` ``. In case of reference, the value is used. In case of string, the value is interpolated ONCE. In case of `` `expr` ``, the expression is evaluated. Optional — defaults to `"assertion failed"`.
+
+#### Diagnostics
+- Fatal: `assertion_failed`: The asserted condition was falsy. Includes the evaluated message.
+
+#### Returns
+A nothing.
+
+#### Examples
+```
+/assert *is_valid;
+/assert *health, "health must be truthy";
+/assert `*health > 0`, "health must be positive: ${*health}";
+/assert *mode, is: "combat", "expected combat mode";
+/assert /has *inventory, "sword";, "player must have sword";
+```
+
 ### Core.Roll
 
 A roll verb returns a random value.
