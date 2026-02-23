@@ -1,10 +1,11 @@
 # Assert Verb Implementation Spec
 
-> **Status:** Ready
+> **Status:** Complete
 > **Created:** 2026-02-23
 > **Author:** agent
 > **Source:** Direct request (followup for @[impl])
 > **Related Projex:** [20260223-assert-verb-spec-patch.md](file:///s:/repos/zoh/projex/closed/20260223-assert-verb-spec-patch.md), 20260222-specs-nav.md
+> **Patch Document:** [20260223-assert-verb-impl-patch.md](file:///s:/repos/zoh/impl/projex/closed/20260223-assert-verb-impl-patch.md)
 
 ---
 
@@ -23,10 +24,10 @@ Add the implementation specification for the new `Core.Assert` verb to `impl/06_
 The language specification was recently updated to include `Core.Assert` (in `spec/2_verbs.md`). The implementation specification in `impl/` needs to match this addition so runtime authors have a reference for its internal behavior (such as `resolveValue`, comparison semantics, and diagnostic emission).
 
 ### Success Criteria
-- [ ] `Core.Assert` section added to `impl/06_core_verbs.md` after the `Debug Verbs` section.
-- [ ] Pseudocode clearly defines how `subject` and `is` parameters are evaluated and compared.
-- [ ] Pseudocode defines how the `message` string is resolved and interpolated exactly ONCE on failure.
-- [ ] `Core.Assert` (and optionally Debug Verbs) added to the `Testing Checklist` at the end of the file.
+- [x] [PATCHED] `Core.Assert` section added to `impl/06_core_verbs.md` after the `Debug Verbs` section.
+- [x] [PATCHED] Pseudocode clearly defines how `subject` and `is` parameters are evaluated and compared.
+- [x] [PATCHED] Pseudocode defines how the `message` string is resolved and interpolated exactly ONCE on failure.
+- [x] [PATCHED] `Core.Assert` (and optionally Debug Verbs) added to the `Testing Checklist` at the end of the file.
 
 ### Out of Scope
 - Actually implementing `Core.Assert` in the C# runtime.

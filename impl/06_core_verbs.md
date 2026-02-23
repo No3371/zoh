@@ -751,6 +751,54 @@ DebugDriver.execute(call, context):
 
 ---
 
+## Core.Assert
+
+**Purpose**: Assert a condition matches a value (truthy by default) and emit a fatal diagnostic on failure.
+
+### Signature
+```
+/assert subject, is:value?, message?;
+```
+
+### Implementation
+
+```
+AssertDriver.execute(call, context):
+    subject = resolveValue(call.params[0], context)
+    compareValue = getNamedParam(call, "is", BoolValue(true))
+    
+    # Evaluate subject if needed
+    if subject is VerbValue:
+        subject = executeVerb(subject, context)
+    if subject is ExpressionValue:
+        subject = evaluate(subject, context)
+        
+    # Validate subject type when comparing to default (true)
+    if compareValue == BoolValue(true):
+        if subject is not BoolValue and not subject.isNothing():
+            return fatal("invalid_type", "Condition must be boolean or nothing, got: " + subject.getType())
+
+    compareValue = resolveValue(compareValue, context)
+    matches = equals(subject, compareValue)
+    
+    if not matches:
+        message = "assertion failed"
+        if call.params.length > 1:
+            msgParam = resolve(call.params[1], context)
+            if msgParam is ExpressionValue:
+                msgParam = evaluate(msgParam, context)
+            if msgParam is StringValue:
+                message = interpolate(msgParam.value, context)
+            else:
+                message = msgParam.toString()
+                
+        return fatal("assertion_failed", message)
+        
+    return ok()
+```
+
+---
+
 ## Core.Has
 
 **Purpose**: Check if a value exists in a list or as a key in a map.
@@ -1088,4 +1136,12 @@ ExitDriver.execute(call, context):
 ### Utility Verbs
 - [ ] Exit: terminates context
 - [ ] Exit: defers still execute
+
+### Debug & Assert Verbs
+- [ ] Debug verbs emit appropriate diagnostic severities
+- [ ] Debug verbs interpolate message once
+- [ ] Assert passes on truthy (or matching `is:`)
+- [ ] Assert fatals on falsy (or mismatching `is:`)
+- [ ] Assert evaluates and interpolates message only on failure
+- [ ] Assert returns `assertion_failed` fatal code
 
