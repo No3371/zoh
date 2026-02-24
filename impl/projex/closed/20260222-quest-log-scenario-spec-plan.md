@@ -1,7 +1,9 @@
 # Plan: Quest Log Processor End-to-End Scenario Spec
 
-> **Status:** Ready
+> **Status:** Complete
 > **Created:** 2026-02-22
+> **Completed:** 2026-02-23
+> **Walkthrough:** `20260222-quest-log-scenario-spec-walkthrough.md`
 > **Author:** Agent
 > **Source:** Direct request — cover spec verbs absent from `mud_server` scenario
 > **Related Projex:** `20260222-specs-nav.md`
