@@ -313,8 +313,10 @@ Verb calls are not supported.
 
 #### Diagnostics
 - Fatal: `invalid_syntax`: Malformed expression syntax.
-- Fatal: `invalid_type`: Type error during expression evaluation (e.g., adding string to integer).
+- Fatal: `invalid_type`: Type error during expression evaluation (e.g., subtracting integer from string, or using arithmetic on `nothing`).
 - Fatal: `undefined_var`: Any variable used in the expression is undefined.
+- Fatal: `division_by_zero`: Division or modulo operation with a zero divisor.
+- Fatal: `invalid_index`: Index out of bounds in an `$(options)[n]` indexed form.
 
 #### Returns
 The result of the expression, type depends on the expression.
@@ -1257,7 +1259,7 @@ A nothing.
 
 ### Core.Assert
 
-An assert verb checks a condition and emits a fatal diagnostic with the given message if the condition is not met (falsy: `false` or `nothing`). If the condition is met (truthy: anything that is not falsy), no diagnostic is emitted.
+An assert verb checks a condition and emits a fatal diagnostic with the given message if the condition is not met (falsy: `false`, `nothing`, `0`, `0.0`, `""`, `[]`, `{}`). If the condition is met (truthy: anything that is not falsy), no diagnostic is emitted.
 
 #### Named Parameters
 - `is`: Value to be compared to the subject. Optional. Default to `true`. Accept `any`. In case of reference, the value is used. In case of `` `expr` ``, it is evaluated.

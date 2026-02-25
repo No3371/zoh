@@ -1,7 +1,9 @@
 # Expression Grammar Spec Fixes
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Created:** 2026-02-24
+> **Completed:** 2026-02-25
+> **Walkthrough:** [20260224-expr-spec-fixes-walkthrough.md](20260224-expr-spec-fixes-walkthrough.md)
 > **Author:** agent
 > **Source:** `20260224-expr-spec-eval.md`
 > **Related Projex:** `20260224-expr-spec-eval.md`, `20260224-expr-spec-fixes-impl-plan.md`

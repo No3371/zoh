@@ -21,13 +21,14 @@ equality_expr   := relational_expr ( ( '==' | '!=' ) relational_expr )*
 relational_expr := additive_expr ( ( '<' | '>' | '<=' | '>=' ) additive_expr )*
 additive_expr   := multiplicative_expr ( ( '+' | '-' ) multiplicative_expr )*
 multiplicative_expr := unary_expr ( ( '*' | '/' | '%' ) unary_expr )*
-unary_expr      := ( '!' | '-' ) unary_expr | primary_expr
+unary_expr      := ( '!' | '-' ) unary_expr | power_expr
+power_expr      := primary_expr ( '**' unary_expr )*
 primary_expr    := literal | reference | '(' expression ')' | special_form
 
 literal         := string_literal | integer_literal | double_literal | boolean_literal | nothing_literal
 string_literal  := '"' <chars> '"' | "'" <chars> "'"
-integer_literal := ['-'] <digits>
-double_literal  := ['-'] <digits> '.' <digits>
+integer_literal := <digits>
+double_literal  := <digits> '.' <digits>
 boolean_literal := 'true' | 'false'
 nothing_literal := '?'
 
@@ -43,7 +44,7 @@ Expressions support special syntax that expands to verb calls during evaluation:
 ```ebnf
 special_form    := interpolate_form | count_form | conditional_form | any_form | indexed_form | roll_form | wroll_form
 
-interpolate_form := '$(' expression ')'
+interpolate_form := '$' string_literal | '$' reference
 count_form       := '$#(' reference ')'
 conditional_form := '$?(' expression '?' expression ':' expression ')'
 any_form         := '$?(' option_list ')'
@@ -54,17 +55,24 @@ wroll_form       := '$(' weighted_option_list ')[%]'
 option_list         := expression ( '|' expression )*
 weighted_option_list := weighted_option ( '|' weighted_option )*
 weighted_option     := expression ':' integer_literal
-index_spec          := ['!'] ( reference | integer_literal )
+index_spec          := ['!'] expression
 ```
+
+> **Disambiguation — `any_form` vs `conditional_form`:** Both start with `$?(`. They are distinguished by the token after the first expression: `?` signals conditional form; `|` or `)` signals any form.
+>
+> **Disambiguation — `roll_form` vs `wroll_form`:** Both use `$(options)[%]`. A form is weighted (`wroll_form`) when any option includes a `:` weight suffix (`expression ':' integer_literal`). Detection happens during parsing of the option list.
+>
+> **`$(options)` without suffix:** `$(a|b|c)` not followed by `[index]` or `[%]` is a parse error. Use `$?(a|b|c)` for first-non-nothing selection.
 
 ### Special Form Semantics
 
 | Syntax | Evaluates To |
 |--------|--------------|
-| `$(*var)` | Interpolated string |
+| `$*var` | Value of `*var` treated as string template and interpolated |
+| `$"string"` | String literal interpolated |
 | `$#(*var)` | Count/length of collection or string |
 | `$?(*cond? *a : *b)` | `*a` if `*cond` is truthy, else `*b` |
-| `$?(*a\|*b\|*c)` | First non-nothing value |
+| `$?(*a\|*b\|*c)` | First non-nothing value; `?` if all are nothing |
 | `$(1\|2\|3)[*i]` | Element at index `*i` |
 | `$(1\|2\|3)[!*i]` | Element at index `*i % count` (wrap-around) |
 | `$(a\|b\|c)[%]` | Random element |
@@ -76,25 +84,92 @@ index_spec          := ['!'] ( reference | integer_literal )
 
 | Precedence | Operators | Associativity |
 |------------|-----------|---------------|
-| 1 | `!` `-` (unary) | Right |
-| 2 | `*` `/` `%` | Left |
-| 3 | `+` `-` | Left |
-| 4 | `<` `>` `<=` `>=` | Left |
-| 5 | `==` `!=` | Left |
-| 6 | `&&` | Left |
-| 7 | `\|\|` | Left |
+| 1 | `**` | Right |
+| 2 | `!` `-` (unary) | Right |
+| 3 | `*` `/` `%` | Left |
+| 4 | `+` `-` | Left |
+| 5 | `<` `>` `<=` `>=` | Left |
+| 6 | `==` `!=` | Left |
+| 7 | `&&` | Left |
+| 8 | `\|\|` | Left |
 
 ### Type-Specific Behavior
 
-| Operator | Integer | Double | String | List | Boolean |
-|----------|---------|--------|--------|------|---------|
-| `+` | Add | Add | Concatenate | Concatenate | N/A |
-| `-` | Subtract | Subtract | N/A | N/A | N/A |
-| `*` | Multiply | Multiply | N/A | N/A | N/A |
-| `/` | Divide (floor) | Divide | N/A | N/A | N/A |
-| `%` | Modulo | N/A | N/A | N/A | N/A |
-| `==` | Equal | Equal | Equal (case-sensitive) | Deep equal | Equal |
-| `!=` | Not equal | Not equal | Not equal | Not deep equal | Not equal |
+| Operator | Integer | Double | String | List | Map | Boolean |
+|----------|---------|--------|--------|------|-----|---------|
+| `**` | Power¹ | Power | N/A | N/A | N/A | N/A |
+| `+` | Add | Add | Concatenate | Concatenate | N/A | N/A |
+| `-` | Subtract | Subtract | N/A | N/A | N/A | N/A |
+| `*` | Multiply | Multiply | N/A | N/A | N/A | N/A |
+| `/` | Divide (floor) | Divide | N/A | N/A | N/A | N/A |
+| `%` | Modulo | N/A | N/A | N/A | N/A | N/A |
+| `<` `>` `<=` `>=` | Compare | Compare | Lexicographic | N/A | N/A | N/A |
+| `==` | Equal | Equal | Equal (case-sensitive) | Deep equal | Deep equal | Equal |
+| `!=` | Not equal | Not equal | Not equal | Not deep equal | Not deep equal | Not equal |
+| `&&` `\|\|` | →bool² | →bool² | →bool² | →bool² | →bool² | →bool |
+
+¹ Result type: `integer ** integer` (exponent ≥ 0) → `integer`; any other numeric combination → `double`.
+² Operands coerced to boolean via truthiness rules (see §Truthiness); result is always `boolean`.
+
+### Truthiness
+
+Boolean coercion is used by `&&`, `||`, `!`, and all conditional forms (`$?`). The following table defines what is truthy and falsy for each type:
+
+| Type | Truthy | Falsy |
+|------|--------|-------|
+| `nothing` | — | Always falsy |
+| `boolean` | `true` | `false` |
+| `integer` | Non-zero | `0` |
+| `double` | Non-zero | `0.0` |
+| `string` | Non-empty | `""` |
+| `list` | Non-empty | `[]` |
+| `map` | Non-empty | `{}` |
+| `channel` | Always truthy | — |
+| `verb` | Always truthy | — |
+| `expression` | Always truthy | — |
+
+## Edge Cases
+
+### Division and Modulo by Zero
+
+Division or modulo with a zero divisor is a fatal `division_by_zero` error.
+
+```zoh
+`*x / 0`   :: fatal: division_by_zero
+`*x % 0`   :: fatal: division_by_zero
+```
+
+### `nothing` in Operator Expressions
+
+The `?` nothing literal supports equality comparison only:
+
+| Expression | Result |
+|------------|--------|
+| `*a == ?` | `true` if `*a` is `nothing`, `false` otherwise |
+| `*a != ?` | `false` if `*a` is `nothing`, `true` otherwise |
+
+All other operators with a `nothing` operand produce fatal `invalid_type`.
+
+### Short-Circuit Evaluation
+
+`&&` and `||` are short-circuit (lazy):
+- `false && X` — `X` is never evaluated; result is `false`
+- `true || X` — `X` is never evaluated; result is `true`
+
+Errors in unevaluated branches are not raised.
+
+### `$#()` Count by Type
+
+| Type | Result |
+|------|--------|
+| `list` | Number of elements |
+| `map` | Number of key-value pairs |
+| `string` | Number of Unicode code points |
+| All other types | Fatal `invalid_type` |
+
+### `$(options)` Indexed Form Out-of-Bounds
+
+Accessing `$(a|b|c)[5]` with an out-of-bounds index is a fatal `invalid_index` error. Wrap-around (`[!5]`) uses modulo and is never out-of-bounds.
 
 ## Variable Resolution
 
