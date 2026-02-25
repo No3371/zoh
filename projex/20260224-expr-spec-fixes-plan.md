@@ -1,6 +1,6 @@
 # Expression Grammar Spec Fixes
 
-> **Status:** Ready
+> **Status:** In Progress
 > **Created:** 2026-02-24
 > **Author:** agent
 > **Source:** `20260224-expr-spec-eval.md`
