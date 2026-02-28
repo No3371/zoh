@@ -1,10 +1,12 @@
 # Expression Spec Fixes — Impl Doc
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Created:** 2026-02-24
+> **Completed:** 2026-02-28
 > **Author:** agent
 > **Source:** `20260224-expr-spec-eval.md`
 > **Related Projex:** `20260224-expr-spec-eval.md`, `20260224-expr-spec-fixes-plan.md`
+> **Walkthrough:** `20260224-expr-spec-fixes-impl-walkthrough.md`
 
 ---
 
@@ -25,9 +27,9 @@ Fixes two issues in `impl/04_expressions.md` identified by the expression gramma
 2. **F4**: `parseOptionList()` falls through to `return AnyForm(options)` when no `[index]` or `[%]` follows. Per the spec and user decision, this is invalid syntax. The impl should emit a parse error instead.
 
 ### Success Criteria
-- [ ] Grammar comment for `conditional` uses `':'` not `'|'`
-- [ ] `parseOptionList()` raises a parse error when the `$(...)` form is not followed by `[index]` or `[%]`
-- [ ] Error message clearly explains the mistake and suggests `$?()` as the correct form
+- [x] Grammar comment for `conditional` uses `':'` not `'|'`
+- [x] `parseOptionList()` raises a parse error when the `$(...)` form is not followed by `[index]` or `[%]`
+- [x] Error message clearly explains the mistake and suggests `$?()` as the correct form
 
 ### Out of Scope
 - Spec file changes — covered in `20260224-expr-spec-fixes-plan.md`
@@ -121,8 +123,8 @@ Two small, isolated edits to `impl/04_expressions.md`. No structural changes to 
 ## Verification Plan
 
 ### Manual Verification
-- [ ] Read `impl/04_expressions.md` grammar block — `conditional` comment uses `':'`
-- [ ] Read `parseOptionList()` pseudocode — no fallthrough `return AnyForm`; ends with `error(...)` call
+- [x] Read `impl/04_expressions.md` grammar block — `conditional` comment uses `':'`
+- [x] Read `parseOptionList()` pseudocode — no fallthrough `return AnyForm`; ends with `error(...)` call
 
 ### Acceptance Criteria Validation
 | Criterion | How to Verify | Expected Result |

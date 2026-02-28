@@ -27,7 +27,7 @@ special_form    := interpolate | count | conditional | any | indexed | roll | wr
 
 interpolate     := '$' string | '$' reference              # /interpolate ($"str" or $*ref)
 count           := '$#(' reference ')'                     # /count
-conditional     := '$?(' expr '?' expr '|' expr ')'        # /if ternary
+conditional     := '$?(' expr '?' expr ':' expr ')'        # /if ternary
 any             := '$?(' option_list ')'                   # /first non-nothing  
 indexed         := '$(' option_list ')[' index ']'         # /get by index
 roll            := '$(' option_list ')[%]'                 # /roll random
@@ -252,7 +252,7 @@ parseOptionList(): ExprNode
             consume(RBRACKET)
             return IndexedForm(options, index, wrap)
     
-    return AnyForm(options)
+    error("'$(' option list requires '[index]' or '[%]' suffix; did you mean '$?(' for first-non-nothing selection?")
 
 parseConditionalOrAny(): ExprNode
     # $?(cond ? then : else) or $?(a|b|c)
