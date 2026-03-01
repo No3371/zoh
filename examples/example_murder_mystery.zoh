@@ -1,17 +1,15 @@
 Murder Mystery
-author: Ink Sample Conversion (Spec-aligned);
+author: Ink Sample Conversion (Spec-aligned, modernized);
+zoh_version: "latest";
+required_verbs: "*";
 ===
 
 :: ============================================================================
 :: STATE MANAGEMENT
 :: ============================================================================
 
-:: State lookup maps (for LIST-like enums)
-*States_OffOn <- {"off": 0, "on": 1};
-*States_SeenUnseen <- {"unseen": 0, "seen": 1};
-*States_GlassState <- {"none": 0, "steamed": 1, "steam_gone": 2};
-*States_BedState <- {"made_up": 0, "covers_shifted": 1, "covers_off": 2, "bloodstain_visible": 3};
-*States_Supporters <- {"on_desk": 0, "on_floor": 1, "on_bed": 2, "under_bed": 3, "held": 4, "with_joe": 5};
+:: Used for supporter-state updates
+*Supporters <- ["on_desk", "on_floor", "on_bed", "under_bed", "held", "with_joe"];
 
 :: Knowledge milestone chains
 *Chain_BedKnowledge <- ["neatly_made", "crumpled_duvet", "hastily_remade", "body_on_bed", "murdered_in_bed", "murdered_while_asleep"];
@@ -31,32 +29,25 @@ author: Ink Sample Conversion (Spec-aligned);
 *_turn_counter <- 0;
 *_turn_at <- {};
 
+@start
+====> @murder_scene;
+
 :: ============================================================================
 :: HELPER FUNCTIONS
 :: ============================================================================
-
-@_fn_get
-:: Add item to inventory. Input: *_arg_item
-/append *Inventory, *_arg_item;
-/exit;
 
 @_fn_move_to_supporter
 :: Move item state to new supporter. Input: *_arg_item_state (ref), *_arg_new_supporter
 *_temp_list <- [];
 /foreach/ *_arg_item_state *_it
     /sequence/
-        /has *States_Supporters, *_it; -> *_is_supporter;
+        /has *Supporters, *_it; -> *_is_supporter;
         /if *_is_supporter is:false, /append *_temp_list, *_it;;
     /;
 /;
 /append *_temp_list, *_arg_new_supporter;
 *_arg_item_state <- *_temp_list;
 /exit;
-
-@_fn_reached
-:: Check if knowledge reached. Input: *_arg_state
-/has *knowledgeState, *_arg_state; -> *_ret;
-/exit *_ret;
 
 @_fn_reach
 :: Add knowledge state (chain-aware). Input: *_arg_state
@@ -118,64 +109,51 @@ author: Ink Sample Conversion (Spec-aligned);
 /has *knowledgeState, "prints_on_knife"; -> *_has_knife_prints;
 /if `*_can_compare && *_has_knife_prints`, <===+ @compare_prints;;
 
-:: Build choice options
-*_choices <- [];
-
-:: The bed (one-time)
-/has *_visited, "dobed"; -> *_did_bed;
-/if `!*_did_bed`, /append *_choices, {"The bed...": "bed"};;
-
-:: Look under bed with light on floor
-/has *_visited, "darkunder"; -> *_did_darkunder;
-/has *bedroomLightState, "on_floor"; -> *_light_floor;
-/has *bedroomLightState, "on"; -> *_light_on;
-/if `*_did_darkunder && *_light_floor && *_light_on`, /append *_choices, {"Look under the bed": "look_under"};;
-
-:: Knock with cane
-/has *_visited, "reaching"; -> *_did_reaching;
-/has *Inventory, "cane"; -> *_has_cane;
-/get *_turn_at["reaching"]; -> *_turn_reaching;
-/eval `*_turn_counter - *_turn_reaching`; -> *_since_reaching;
-/if `*_did_reaching && *_since_reaching >= 4 && *_has_cane`, /append *_choices, {"Use the cane to reach under the bed": "knock_cane"};;
-
-:: Pick up knife
-/has *knifeState, "on_floor"; -> *_knife_floor;
-/if *_knife_floor, /append *_choices, {"Pick up the knife": "pickup_knife"};;
-
-:: Look at knife
-/has *Inventory, "knife"; -> *_has_knife;
-/if *_has_knife, /append *_choices, {"Look at the knife": "look_knife"};;
-
-:: The desk (one-time)
-/has *_visited, "desk"; -> *_did_desk;
-/if `!*_did_desk`, /append *_choices, {"The desk...": "desk"};;
-
-:: Swoosh cane (conditional on timing)
-/get *_turn_at["deskstate"]; -> *_turn_desk;
-/eval `*_turn_counter - *_turn_desk`; -> *_since_desk;
-/if `*_has_cane && *_since_desk <= 2`, /append *_choices, {"Swoosh the cane": "swoosh"};;
-
-:: The window (one-time)  
-/has *_visited, "window"; -> *_did_window;
-/if `!*_did_window`, /append *_choices, {"The window...": "window"};;
-
-:: Leave room (after 5 visits to top)
+:: Track top visits
 /get *_visited["top"]; -> *_top_count;
 /any *_top_count; -> *_has_top;
 /if `!*_has_top`, *_top_count <- 0;;
-/if `*_top_count >= 5`, /append *_choices, {"Leave the room": "leave"};;
-
-:: Track top visits
 /increase *_top_count;
 /set *_visited["top"], *_top_count;
 
-:: Show choices
-/count *_choices; -> *_choice_count;
-/if `*_choice_count == 0`, ====> @murder_scene_top;;
+:: Conditions
+/has *_visited, "dobed"; -> *_did_bed;
+/has *_visited, "darkunder"; -> *_did_darkunder;
+/has *_visited, "reaching"; -> *_did_reaching;
+/has *_visited, "desk"; -> *_did_desk;
+/has *_visited, "window"; -> *_did_window;
 
-/chooseFrom *_choices; -> *_choice;
+/has *bedroomLightState, "on_floor"; -> *_light_floor;
+/has *bedroomLightState, "on"; -> *_light_on;
+/has *Inventory, "cane"; -> *_has_cane;
+/has *Inventory, "knife"; -> *_has_knife;
+/has *knifeState, "on_floor"; -> *_knife_floor;
 
-:: Dispatch
+/get *_turn_at["reaching"]; -> *_turn_reaching;
+/any *_turn_reaching; -> *_has_turn_reaching;
+/if `!*_has_turn_reaching`, *_turn_reaching <- 0;;
+/eval `*_turn_counter - *_turn_reaching`; -> *_since_reaching;
+
+/get *_turn_at["deskstate"]; -> *_turn_desk;
+/any *_turn_desk; -> *_has_turn_desk;
+/if `!*_has_turn_desk`, *_turn_desk <- 9999;;
+/eval `*_turn_counter - *_turn_desk`; -> *_since_desk;
+
+/eval `!*_did_bed || (*_did_darkunder && *_light_floor && *_light_on) || (*_did_reaching && *_since_reaching >= 4 && *_has_cane) || *_knife_floor || *_has_knife || !*_did_desk || (*_has_cane && *_since_desk <= 2) || !*_did_window || (*_top_count >= 5)`; -> *_has_main_option;
+/if `!*_has_main_option`, ====> @murder_scene_top;;
+
+/choose/
+    `!*_did_bed` "The bed..." "bed"
+    `*_did_darkunder && *_light_floor && *_light_on` "Look under the bed" "look_under"
+    `*_did_reaching && *_since_reaching >= 4 && *_has_cane` "Use the cane to reach under the bed" "knock_cane"
+    *_knife_floor "Pick up the knife" "pickup_knife"
+    *_has_knife "Look at the knife" "look_knife"
+    `!*_did_desk` "The desk..." "desk"
+    `*_has_cane && *_since_desk <= 2` "Swoosh the cane" "swoosh"
+    `!*_did_window` "The window..." "window"
+    `*_top_count >= 5` "Leave the room" "leave"
+/; -> *_choice;
+
 /switch/ *_choice
     "bed"           /jump ?, "dobed";
     "look_under"    /jump ?, "look_under_bed_lit";
@@ -202,36 +180,23 @@ author: Ink Sample Conversion (Spec-aligned);
 <===+ @_fn_reach *_arg_state;
 
 @bedhub
-*_bed_choices <- [];
-
-:: Lift bedcover (one-time)
 /has *_visited, "lift_bedcover"; -> *_did_lift;
-/if `!*_did_lift`, /append *_bed_choices, {"Lift the bedcover": "lift"};;
-
-:: Remove cover (after crumpled_duvet)
 /has *knowledgeState, "crumpled_duvet"; -> *_saw_crumpled;
 /has *_visited, "uncover"; -> *_did_uncover;
-/if `*_saw_crumpled && !*_did_uncover`, /append *_bed_choices, {"Remove the cover": "uncover"};;
-
-:: Pull back duvet (after covers_off)
-/if `*BedState == "covers_off"`, /append *_bed_choices, {"Pull back the duvet": "duvet"};;
-
-:: Remake bed (if not made_up)
-/if `*BedState != "made_up"`, /append *_bed_choices, {"Remake the bed": "remake"};;
-
-:: Test the bed
-/append *_bed_choices, {"Test the bed": "test"};
-
-:: Look under the bed (darkunder)
 /has *_visited, "darkunder"; -> *_did_dark;
-/if `!*_did_dark`, /append *_bed_choices, {"Look under the bed": "dark"};;
 
-:: Something else (after 1 turn)
 /get *_turn_at["dobed"]; -> *_turn_dobed;
 /eval `*_turn_counter - *_turn_dobed`; -> *_since_dobed;
-/if `*_since_dobed > 1`, /append *_bed_choices, {"Something else?": "back"};;
 
-/chooseFrom *_bed_choices; -> *_bed_choice;
+/choose/
+    `!*_did_lift` "Lift the bedcover" "lift"
+    `*_saw_crumpled && !*_did_uncover` "Remove the cover" "uncover"
+    `*BedState == "covers_off"` "Pull back the duvet" "duvet"
+    `*BedState != "made_up"` "Remake the bed" "remake"
+    true "Test the bed" "test"
+    `!*_did_dark` "Look under the bed" "dark"
+    `*_since_dobed > 1` "Something else?" "back"
+/; -> *_bed_choice;
 /increase *_turn_counter;
 
 /switch/ *_bed_choice
@@ -297,18 +262,17 @@ author: Ink Sample Conversion (Spec-aligned);
 @reaching
 /set *_visited["reaching"], true;
 /set *_turn_at["reaching"], *_turn_counter;
-*_reach_choices <- [];
-/append *_reach_choices, {"Reach for it": "reach"};
 
 /has *Inventory, "cane"; -> *_has_cane;
-/if *_has_cane, /append *_reach_choices, {"Knock it with the cane": "knock"};;
-
 /get *_visited["reaching_attempt"]; -> *_attempts;
 /any *_attempts; -> *_has_attempts;
 /if `!*_has_attempts`, *_attempts <- 0;;
-/if `*_attempts > 1`, /append *_reach_choices, {"Stand up": "standup"};;
 
-/chooseFrom *_reach_choices; -> *_reach_choice;
+/choose/
+    true "Reach for it" "reach"
+    *_has_cane "Knock it with the cane" "knock"
+    `*_attempts > 1` "Stand up" "standup"
+/; -> *_reach_choice;
 /increase *_turn_counter;
 
 /switch/ *_reach_choice
@@ -336,11 +300,10 @@ author: Ink Sample Conversion (Spec-aligned);
 <===+ [inline] @_fn_move_to_supporter *_arg_item_state *_arg_new_supporter;
 *knifeState <- *_arg_item_state;
 
-*_cane_choices <- [];
-/append *_cane_choices, {"Stand up": "standup"};
-/append *_cane_choices, {"Look under the bed once more": "look_again"};
-
-/chooseFrom *_cane_choices; -> *_cane_choice;
+/choose/
+    true "Stand up" "standup"
+    true "Look under the bed once more" "look_again"
+/; -> *_cane_choice;
 
 /if `*_cane_choice == "standup"`, /sequence/
     /converse "Satisfied, I stood up, and saw I had knocked free a bloodied knife.";
@@ -352,8 +315,7 @@ author: Ink Sample Conversion (Spec-aligned);
 
 @pickup_knife
 /converse "Careful not to touch the handle, I lifted the blade from the carpet.";
-*_arg_item <- "knife";
-<===+ @_fn_get *_arg_item;
+/append *Inventory, "knife";
 ====> @murder_scene_top;
 
 @look_knife
@@ -376,35 +338,27 @@ author: Ink Sample Conversion (Spec-aligned);
 
 @deskstate
 /set *_turn_at["deskstate"], *_turn_counter;
-*_desk_choices <- [];
 
-:: Pick up cane
 /has *Inventory, "cane"; -> *_has_cane;
-/if `!*_has_cane`, /append *_desk_choices, {"Pick up the cane": "cane"};;
-
-:: Turn on lamp
 /has *bedroomLightState, "on"; -> *_light_on;
-/if `!*_light_on`, /append *_desk_choices, {"Turn on the lamp": "lamp"};;
 
-:: In-tray
-/append *_desk_choices, {"Look at the in-tray": "tray"};
-
-:: Drawers (up to 3 times)
 /get *_visited["open_drawer"]; -> *_drawer_count;
 /any *_drawer_count; -> *_has_drawer;
 /if `!*_has_drawer`, *_drawer_count <- 0;;
-/if `*_drawer_count < 3`, /append *_desk_choices, {"Open a drawer": "drawer"};;
 
-:: Something else (after 2 interactions)
 /get *_visited["deskstate"]; -> *_desk_visits;
 /any *_desk_visits; -> *_has_desk_visits;
 /if `!*_has_desk_visits`, *_desk_visits <- 0;;
-/if `*_desk_visits >= 2`, /append *_desk_choices, {"Something else?": "back"};;
-
 /increase *_desk_visits;
 /set *_visited["deskstate"], *_desk_visits;
 
-/chooseFrom *_desk_choices; -> *_desk_choice;
+/choose/
+    `!*_has_cane` "Pick up the cane" "cane"
+    `!*_light_on` "Turn on the lamp" "lamp"
+    true "Look at the in-tray" "tray"
+    `*_drawer_count < 3` "Open a drawer" "drawer"
+    `*_desk_visits >= 2` "Something else?" "back"
+/; -> *_desk_choice;
 /increase *_turn_counter;
 
 /switch/ *_desk_choice
@@ -418,8 +372,7 @@ author: Ink Sample Conversion (Spec-aligned);
 /do *_action;;
 
 @pickup_cane
-*_arg_item <- "cane";
-<===+ @_fn_get *_arg_item;
+/append *Inventory, "cane";
 /converse "I picked up the wooden cane. It was heavy, and unmarked.";
 ====> @deskstate;
 
@@ -484,42 +437,29 @@ author: Ink Sample Conversion (Spec-aligned);
 /converse "I went over to the window and peered out. A dismal view of the little brook that ran down beside the house.";
 
 @window_opts
-*_win_choices <- [];
-
 /get *_visited["window_opts"]; -> *_win_visits;
 /any *_win_visits; -> *_has_win_visits;
 /if `!*_has_win_visits`, *_win_visits <- 0;;
 /increase *_win_visits;
 /set *_visited["window_opts"], *_win_visits;
 
-:: Check compare_prints
+:: Conditions
 *_arg_start <- "fingerprints_on_glass";
 *_arg_end <- "fingerprints_on_glass_match_knife";
 <===+ [inline] @_fn_between *_arg_start *_arg_end; -> *_can_compare;
 /has *knowledgeState, "prints_on_knife"; -> *_has_knife_prints;
-/if `*_can_compare && *_has_knife_prints`, /append *_win_choices, {"Compare the prints on the knife and the window": "compare"};;
-
-:: Look down at brook
 /has *_visited, "downy"; -> *_did_downy;
-/if `!*_did_downy`, /append *_win_choices, {"Look down at the brook": "brook"};;
-
-:: Look at glass
 /has *_visited, "greasy"; -> *_did_greasy;
-/if `!*_did_greasy`, /append *_win_choices, {"Look at the glass": "glass"};;
+/has *_visited, "see_prints"; -> *_did_see_prints;
 
-:: Look at steam (conditional)
-/if `*GlassState == "steamed"`, /sequence/
-    /has *_visited, "see_prints"; -> *_saw_prints;
-    /if `!*_saw_prints && *_did_downy && *_did_greasy`, /append *_win_choices, {"Look at the steam": "steam"};;
-/;;
-
-:: Breathe on glass
-/if `*GlassState == "steam_gone"`, /append *_win_choices, {"Breathe on the glass": "breathe"};;
-
-:: Something else
-/append *_win_choices, {"Something else?": "back"};
-
-/chooseFrom *_win_choices; -> *_win_choice;
+/choose/
+    `*_can_compare && *_has_knife_prints` "Compare the prints on the knife and the window" "compare"
+    `!*_did_downy` "Look down at the brook" "brook"
+    `!*_did_greasy` "Look at the glass" "glass"
+    `*GlassState == "steamed" && !*_did_see_prints && *_did_downy && *_did_greasy` "Look at the steam" "steam"
+    `*GlassState == "steam_gone"` "Breathe on the glass" "breathe"
+    true "Something else?" "back"
+/; -> *_win_choice;
 /increase *_turn_counter;
 
 /switch/ *_win_choice
@@ -608,33 +548,26 @@ author: Ink Sample Conversion (Spec-aligned);
 :: ============================================================================
 
 @seen_light
-*_light_choices <- [];
-
-:: Turn on lamp
 /has *bedroomLightState, "on"; -> *_light_on;
-/if `!*_light_on`, /append *_light_choices, {"Turn on lamp": "lamp"};;
-
-:: Move light to bed (bloodstain visible)
 /has *bedroomLightState, "on_bed"; -> *_on_bed;
-/if `!*_on_bed && *BedState == "bloodstain_visible"`, /append *_light_choices, {"Move the light to the bed": "to_bed"};;
-
-:: Move light back to desk
 /has *bedroomLightState, "on_desk"; -> *_on_desk;
+/has *bedroomLightState, "on_floor"; -> *_on_floor;
+/has *_visited, "darkunder"; -> *_did_dark;
+
 /get *_turn_at["floorit"]; -> *_turn_floor;
 /any *_turn_floor; -> *_has_floor_turn;
 /if `!*_has_floor_turn`, *_turn_floor <- 0;;
 /eval `*_turn_counter - *_turn_floor`; -> *_since_floor;
-/if `!*_on_desk && *_since_floor >= 2`, /append *_light_choices, {"Move the light back to the desk": "to_desk"};;
 
-:: Move light to floor (after darkunder)
-/has *bedroomLightState, "on_floor"; -> *_on_floor;
-/has *_visited, "darkunder"; -> *_did_dark;
-/if `!*_on_floor && *_did_dark`, /append *_light_choices, {"Move the light to the floor": "to_floor"};;
+/eval `!*_light_on || (!*_on_bed && *BedState == "bloodstain_visible") || (!*_on_desk && *_since_floor >= 2) || (!*_on_floor && *_did_dark)`; -> *_has_light_move;
+/if `!*_has_light_move`, /exit;;
 
-/count *_light_choices; -> *_lc_count;
-/if `*_lc_count == 0`, /exit;;
-
-/chooseFrom *_light_choices; -> *_light_choice;
+/choose/
+    `!*_light_on` "Turn on lamp" "lamp"
+    `!*_on_bed && *BedState == "bloodstain_visible"` "Move the light to the bed" "to_bed"
+    `!*_on_desk && *_since_floor >= 2` "Move the light back to the desk" "to_desk"
+    `!*_on_floor && *_did_dark` "Move the light to the floor" "to_floor"
+/; -> *_light_choice;
 
 /switch/ *_light_choice
     "lamp"     /jump ?, "seen_light_lamp";
@@ -693,39 +626,26 @@ author: Ink Sample Conversion (Spec-aligned);
 *_found_count <- 0;
 
 @joe_found_loop
-*_joe_choices <- [];
-
-:: Nothing (first choice only)
-/if `*_found_count == 0`, /append *_joe_choices, {"'Nothing.'": "nothing"};;
-
-:: Murder weapon
 /has *Inventory, "knife"; -> *_has_knife;
 /has *knifeState, "with_joe"; -> *_joe_has;
-/if `*_has_knife && !*_joe_has`, /append *_joe_choices, {"'I found the murder weapon.'": "weapon"};;
-
-:: Prints on knife
 /has *knowledgeState, "prints_on_knife"; -> *_has_prints;
-/if `*_has_prints && *_joe_has`, /append *_joe_choices, {"'There are prints on the blade.'": "prints"};;
-
-:: Prints match
 /has *knowledgeState, "fingerprints_on_glass_match_knife"; -> *_prints_match;
 /has *knowledgeState, "joe_seen_prints_on_knife"; -> *_joe_saw;
-/if `*_prints_match && *_joe_saw`, /append *_joe_choices, {"'They match a set of prints on the window, too.'": "match"};;
+/has *knowledgeState, "murdered_in_bed"; -> *_in_bed;
 
-:: Body moved (between states)
 *_arg_start <- "body_on_bed";
 *_arg_end <- "murdered_in_bed";
 <===+ [inline] @_fn_between *_arg_start *_arg_end; -> *_body_moved;
-/if *_body_moved, /append *_joe_choices, {"'The body was moved to the bed at some point.'": "moved"};;
 
-:: Murdered in bed
-/has *knowledgeState, "murdered_in_bed"; -> *_in_bed;
-/if *_in_bed, /append *_joe_choices, {"'The victim was murdered in bed, and then the body was moved to the floor.'": "murdered_bed"};;
-
-:: That's it
-/if `*_found_count > 0`, /append *_joe_choices, {"'That's it.'": "done"};;
-
-/chooseFrom *_joe_choices; -> *_joe_choice;
+/choose/
+    `*_found_count == 0` "'Nothing.'" "nothing"
+    `*_has_knife && !*_joe_has` "'I found the murder weapon.'" "weapon"
+    `*_has_prints && *_joe_has` "'There are prints on the blade.'" "prints"
+    `*_prints_match && *_joe_saw` "'They match a set of prints on the window, too.'" "match"
+    *_body_moved "'The body was moved to the bed at some point.'" "moved"
+    *_in_bed "'The victim was murdered in bed, and then the body was moved to the floor.'" "murdered_bed"
+    `*_found_count > 0` "'That's it.'" "done"
+/; -> *_joe_choice;
 /increase *_found_count;
 
 /switch/ *_joe_choice
@@ -772,12 +692,11 @@ author: Ink Sample Conversion (Spec-aligned);
 /converse [By: "Player"] "'The body was moved to the bed at some point,' I told him. 'And then moved back to the floor.'";
 /converse [By: "Joe"] "'Why?'";
 
-*_moved_choices <- [];
-/append *_moved_choices, {"'I don't know.'": "dunno"};
-/append *_moved_choices, {"'Perhaps to get something from the floor?'": "floor"};
-/append *_moved_choices, {"'Perhaps he was killed in bed.'": "killed_bed"};
-
-/chooseFrom *_moved_choices; -> *_moved_choice;
+/choose/
+    true "'I don't know.'" "dunno"
+    true "'Perhaps to get something from the floor?'" "floor"
+    true "'Perhaps he was killed in bed.'" "killed_bed"
+/; -> *_moved_choice;
 
 /if `*_moved_choice == "dunno"`, /converse [By: "Joe"] "Joe nods. 'All right.'";;
 /if `*_moved_choice == "floor"`, /converse [By: "Joe"] "'You wouldn't move a whole body for that.'";;
@@ -788,20 +707,19 @@ author: Ink Sample Conversion (Spec-aligned);
 /converse [By: "Player"] "'The victim was murdered in bed, and then the body was moved to the floor.'";
 /converse [By: "Joe"] "'Why?'";
 
-*_why_choices <- [];
-/append *_why_choices, {"'I don't know.'": "dunno"};
-/append *_why_choices, {"'Perhaps the murderer wanted to mislead us.'": "mislead"};
-/append *_why_choices, {"'Perhaps the murderer hoped to clean up the scene.'": "clean"};
-
-/chooseFrom *_why_choices; -> *_why_choice;
+/choose/
+    true "'I don't know.'" "dunno"
+    true "'Perhaps the murderer wanted to mislead us.'" "mislead"
+    true "'Perhaps the murderer hoped to clean up the scene.'" "clean"
+/; -> *_why_choice;
 
 /if `*_why_choice == "dunno"`, /converse [By: "Joe"] "Joe nods. 'All right, then.'";;
 /if `*_why_choice == "mislead"`, /sequence/
     /converse [By: "Joe"] "'How so?'";
-    *_how_choices <- [];
-    /append *_how_choices, {"'They wanted us to think the victim was awake.'": "awake"};
-    /append *_how_choices, {"'They wanted us to think there was some kind of struggle.'": "struggle"};
-    /chooseFrom *_how_choices; -> *_how_choice;
+    /choose/
+        true "'They wanted us to think the victim was awake.'" "awake"
+        true "'They wanted us to think there was some kind of struggle.'" "struggle"
+    /; -> *_how_choice;
     /if `*_how_choice == "awake"`, /converse [By: "Player"] "'They wanted us to think the victim was awake,' I replied thoughtfully. 'That they were meeting their attacker, rather than being stabbed in their sleep.'";;
     /if `*_how_choice == "struggle"`, /converse [By: "Player"] "'They wanted us to think there was some kind of struggle,' I replied. 'That the victim wasn't simply stabbed in their sleep.'";;
     /converse "'But if they were killed in bed, that's most likely what happened. Stabbed, while sleeping.'";
