@@ -185,22 +185,42 @@ VerbDriver:
   name: string
   priority: int
 
-  execute(call: CompiledVerbCall, context: Context): ExecutionResult
+  execute(call: CompiledVerbCall, context: Context): DriverResult
 
-ExecutionResult:
-  value: Value                # Return value
-  diagnostics: List<Diagnostic>
-  continuation: Continuation? # null = completed; non-null = context must yield
+# Discriminated union: a verb either completes immediately or suspends.
+# Replaces the old ExecutionResult.
+DriverResult:
+  | Complete {
+      value: Value
+      diagnostics: List<Diagnostic>
+    }
+  | Suspend {
+      continuation: Continuation
+      diagnostics: List<Diagnostic>
+    }
 
-# Describes WHAT the driver is waiting for.
-# The runtime decides HOW to fulfill it (tick-loop or async task).
-# Drivers MUST NOT set context.state or context.waitCondition directly.
+# Pairs a wait request with a resume handler.
+# The runtime fulfills the request; the driver handles the outcome.
 Continuation:
+  request: WaitRequest
+  onFulfilled: (WaitOutcome) -> DriverResult
+
+# Describes the external condition the driver is waiting for.
+# Drivers MUST NOT set context.state or context.waitCondition directly.
+WaitRequest:
   | Sleep       { durationMs: double }
   | ChannelPull { channelName: string, generation: int, timeoutMs: double? }
   | ChannelPush { channelName: string, seqNum: int, generation: int, timeoutMs: double? }
-  | Message     { messageName: string, timeoutMs: double? }
-  | Context     { contextId: string, inlineVars: List<VarRef> }
+  | Signal      { messageName: string, timeoutMs: double? }
+  | JoinContext { contextId: string }
+  | Host        { timeoutMs: double? }
+
+# What actually happened when the wait condition was fulfilled.
+# Produced by the runtime, consumed by onFulfilled.
+WaitOutcome:
+  | Completed { value: Value }
+  | TimedOut
+  | Cancelled { code: string, message: string }
 ```
 
 ---
@@ -354,7 +374,9 @@ Context:
   contextDefers: Stack<CompiledVerbCall>
   
   # Waiting state
-  waitCondition: WaitCondition?   # For /pull, /push, /wait, /sleep
+  pendingContinuation: Continuation?   # Stored while blocked; cleared on resume
+  waitCondition: WaitCondition?        # For scheduler condition checks
+  resumeToken: int                     # Incremented on each Suspend; callers must match
 
 ContextState:
   RUNNING                # Actively executing
@@ -362,6 +384,7 @@ ContextState:
   WAITING_CHANNEL_PUSH   # Blocked on waited /push
   WAITING_MESSAGE        # Blocked on /wait
   WAITING_CONTEXT        # Blocked on /call
+  WAITING_HOST           # Blocked on host interaction (/converse, /choose, etc.)
   SLEEPING               # Blocked on /sleep
   TERMINATED             # Finished execution
 ```
@@ -376,45 +399,79 @@ Context.run():
         if instructionPointer >= currentStory.statements.length:
             terminate()
             return
-        
+
         statement = currentStory.statements[instructionPointer]
-        
+
         if statement is CompiledCheckpoint:
-            # Checkpoints are markers, skip
+            validateContract(statement)
             instructionPointer++
             continue
-        
+
         call = statement as CompiledVerbCall
-        
+
         # Find verb driver (Suffix Matching)
-        # Note: Validator guarantees uniqueness or existence roughly, 
-        # but runtime must still resolve the specific driver.
         suffix = call.namespace ? call.namespace + "." + call.name : call.name
         driver = runtime.verbDrivers.resolveBySuffix(suffix)
-        
+
         if driver == null:
             # Unknown verb - treat as no-op
-            runtime.log(WARN, "Unknown verb: " + driverKey)
+            runtime.log(WARN, "Unknown verb: " + suffix)
             instructionPointer++
             continue
-        
-        # Execute
+
+        # Capture state before execution to detect jumps
+        entryIp = instructionPointer
+        entryStory = currentStory
+
         try:
             result = driver.execute(call, this)
-            lastReturnValue = result.value
-            lastDiagnostics = result.diagnostics
         catch FatalError as e:
-            lastDiagnostics.add(Diagnostic(FATAL, e.message))
+            lastDiagnostics = [Diagnostic(FATAL, e.message)]
             terminate()
             return
 
-        # If driver returned a continuation, block and suspend
-        if result.continuation != null:
-            block(result.continuation)
-            return  # Will resume when continuation is fulfilled
+        applyResult(result, entryIp, entryStory)
 
-        instructionPointer++
-    
+# Unified result handler — used by both run() and resume().
+# entryIp/entryStory: IP and story captured before driver execution.
+# IP only advances when the driver has not already modified it (jump guard).
+Context.applyResult(result: DriverResult, entryIp: int, entryStory: CompiledStory):
+    match result:
+        Complete { value, diagnostics }:
+            lastReturnValue = value
+            lastDiagnostics = diagnostics
+            if hasFatal(diagnostics):
+                terminate()
+            elif instructionPointer == entryIp and currentStory == entryStory:
+                instructionPointer++
+                # run() loop continues to next statement
+
+        Suspend { continuation, diagnostics }:
+            lastDiagnostics = diagnostics
+            resumeToken++
+            pendingContinuation = continuation
+            blockOnRequest(continuation.request)
+            # state is now SLEEPING/WAITING_* — run() loop exits (state != RUNNING)
+
+# Called by the scheduler OR the host when the wait condition is met.
+# token must match resumeToken — rejects stale resumes (e.g., host responds
+# after timeout already advanced the context).
+Context.resume(outcome: WaitOutcome, token: int):
+    if token != resumeToken:
+        return    # Stale token — context has moved on
+    if pendingContinuation == null:
+        return    # Already resumed (double-call race) — no-op
+
+    handler = pendingContinuation.onFulfilled
+    pendingContinuation = null
+    waitCondition = null
+
+    result = handler(outcome)
+    state = RUNNING
+    applyResult(result, instructionPointer, currentStory)
+    # If Complete → IP advances, run() can continue
+    # If Suspend  → re-blocks, IP stays, new continuation stored
+
 Context.terminate():
     # Execute defers
     executeStoryDefers()
@@ -426,11 +483,11 @@ Context.terminate():
     state = TERMINATED
     runtime.removeContext(this)
 
-# Processes a Continuation returned by a driver.
-# Sets internal state/waitCondition and handles registrations (subscribe, enqueue).
+# Maps a WaitRequest to internal scheduler state.
 # This is the ONLY place context.state and context.waitCondition are set for blocking.
-Context.block(continuation: Continuation):
-    match continuation:
+# Thinner than the old block() — no verb-specific logic.
+Context.blockOnRequest(request: WaitRequest):
+    match request:
         Sleep { durationMs }:
             state = SLEEPING
             waitCondition = SleepCondition { wakeTime: now() + durationMs }
@@ -440,8 +497,7 @@ Context.block(continuation: Continuation):
             hub.waitingPullers.enqueue(this)
             state = WAITING_CHANNEL
             waitCondition = ChannelWaitCondition {
-                channelName, generation, startTime: now(),
-                timeout: timeoutMs
+                channelName, generation, startTime: now(), timeout: timeoutMs
             }
 
         ChannelPush { channelName, seqNum, generation, timeoutMs }:
@@ -449,22 +505,23 @@ Context.block(continuation: Continuation):
             hub.waitingPushers.enqueue((this, seqNum))
             state = WAITING_CHANNEL_PUSH
             waitCondition = ChannelPushWaitCondition {
-                channelName, seq: seqNum, generation, startTime: now(),
-                timeout: timeoutMs
+                channelName, seq: seqNum, generation, startTime: now(), timeout: timeoutMs
             }
 
-        Message { messageName, timeoutMs }:
+        Signal { messageName, timeoutMs }:
             runtime.signals.subscribe(messageName, this)
             state = WAITING_MESSAGE
             waitCondition = MessageWaitCondition {
                 messageName, startTime: now(), timeout: timeoutMs
             }
 
-        Context { contextId, inlineVars }:
+        JoinContext { contextId }:
             state = WAITING_CONTEXT
-            waitCondition = ContextWaitCondition {
-                targetContextId: contextId, inlineVars
-            }
+            waitCondition = ContextWaitCondition { targetContextId: contextId }
+
+        Host { timeoutMs }:
+            state = WAITING_HOST
+            waitCondition = HostWaitCondition { startTime: now(), timeout: timeoutMs }
 
 Context.cleanupChannels():
     # Deregister from all hub participation dictionaries
@@ -501,107 +558,112 @@ Some verbs block context execution:
 | `/pull` | Channel empty | Value available, timeout, or channel closed |
 | `/wait` | No message | Message received or timeout |
 | `/call` | Forked context | Forked context terminates |
+| `/converse`, `/choose`, `/prompt` | Host interaction | Host calls `context.resume()` directly |
 
-### Implementation Pattern
+### Tick-Loop Scheduler
+
+The scheduler is a pure condition resolver. It checks each blocked context, determines if the wait condition is met, and if so produces a `WaitOutcome` and calls `context.resume()`. No verb-specific logic lives here.
 
 ```
-SleepDriver.execute(call, context):
-    seconds = resolve(call.params[0], context).toDouble()
-
-    # Declare blocking intent — runtime fulfills it via Context.block()
-    return ok(continuation: Sleep { durationMs: seconds * 1000 })
-
-# Context.block() translates the Continuation to internal state:
-#   state = SLEEPING
-#   waitCondition = SleepCondition { wakeTime: now() + durationMs }
-
-# In runtime scheduler (tick-loop model):
 Runtime.tick():
     for context in contexts:
-        match context.state:
-            SLEEPING:
-                if now() >= context.waitCondition.wakeTime:
-                    context.state = RUNNING
-                    context.waitCondition = null
-            
-            WAITING_CHANNEL:
-                hub = channelHubs.get(context.waitCondition.channelName)
-                if hub == null:
-                    context.state = RUNNING
-                    context.lastDiagnostics = [Diagnostic(ERROR, "not_found", "Channel not found")]
-                    context.waitCondition = null
-                elif hub.closed:
-                    context.state = RUNNING
-                    context.lastDiagnostics = [Diagnostic(ERROR, "closed", "Channel closed")]
-                    context.waitCondition = null
-                elif context.waitCondition.isTimedOut():
-                    hub.waitingPullers.remove(context)
-                    context.state = RUNNING
-                    context.lastReturnValue = Nothing
-                    context.lastDiagnostics = [Diagnostic(INFO, "timeout", "Pull timed out")]
-                    context.waitCondition = null
-                # Otherwise: still waiting — pusher will wake us via PushDriver fast path
+        if context.state != RUNNING and context.state != TERMINATED:
+            token = context.resumeToken
+            outcome = resolveWait(context)
+            if outcome != null:
+                context.resume(outcome, token)
 
-            WAITING_CHANNEL_PUSH:
-                hub = channelHubs.get(context.waitCondition.channelName)
-                if hub == null:
-                    context.state = RUNNING
-                    context.lastDiagnostics = [Diagnostic(ERROR, "not_found", "Channel not found")]
-                    context.waitCondition = null
-                elif hub.closed:
-                    context.state = RUNNING
-                    context.lastDiagnostics = [Diagnostic(ERROR, "closed", "Channel closed")]
-                    context.waitCondition = null
-                elif context.waitCondition.isTimedOut():
-                    # Timeout — remove from waiting pushers, value stays in outbox
-                    hub.waitingPushers.remove(context, context.waitCondition.seq)
-                    context.state = RUNNING
-                    context.lastDiagnostics = [Diagnostic(INFO, "timeout", "Push timed out")]
-                    context.waitCondition = null
-                # Otherwise: still waiting — puller will wake us via PullDriver
-
-            WAITING_CONTEXT:
-                targetCtx = contexts.find(c => c.id == context.waitCondition.targetContextId)
-                if targetCtx == null or targetCtx.state == TERMINATED:
-                    # Context finished
-                    returnVal = targetCtx?.lastReturnValue ?? Nothing
-                    
-                    # Handle inline
-                    if context.waitCondition.inlineVars.length > 0:
-                         for ref in context.waitCondition.inlineVars:
-                             val = targetCtx?.get(ref.name) ?? Nothing
-                             context.set(ref.name, val)
-                             
-                    context.state = RUNNING
-                    context.lastReturnValue = returnVal
-                    context.waitCondition = null
-
-            WAITING_MESSAGE:
-                # SignalManager directly updates the waitCondition when signal arrives
-                if context.waitCondition.isFulfilled():
-                    signals.unsubscribe(context.waitCondition.messageName, context)
-                    context.state = RUNNING
-                    context.lastReturnValue = context.waitCondition.payload
-                    context.waitCondition = null
-                elif context.waitCondition.isTimedOut():
-                    signals.unsubscribe(context.waitCondition.messageName, context)
-                    context.state = RUNNING
-                    context.lastReturnValue = Nothing
-                    context.waitCondition = null
-            
-        # Execute if running (including if just unblocked)
         if context.state == RUNNING:
             context.run()
+
+# Returns WaitOutcome if the condition is met, null if still waiting.
+resolveWait(context: Context): WaitOutcome?
+    match context.state:
+        SLEEPING:
+            if now() >= context.waitCondition.wakeTime:
+                return Completed { Nothing }
+            return null
+
+        WAITING_CHANNEL:
+            hub = runtime.channelHubs.get(context.waitCondition.channelName)
+            if hub == null:
+                return Cancelled { "not_found", "Channel not found" }
+            if hub.closed:
+                return Cancelled { "closed", "Channel closed" }
+            if context.waitCondition.isTimedOut():
+                hub.waitingPullers.remove(context)
+                return TimedOut
+            # Value delivery handled by PushDriver fast path
+            return null
+
+        WAITING_CHANNEL_PUSH:
+            hub = runtime.channelHubs.get(context.waitCondition.channelName)
+            if hub == null:
+                return Cancelled { "not_found", "Channel not found" }
+            if hub.closed:
+                return Cancelled { "closed", "Channel closed" }
+            if context.waitCondition.isTimedOut():
+                hub.waitingPushers.remove(context, context.waitCondition.seq)
+                return TimedOut
+            return null
+
+        WAITING_CONTEXT:
+            target = contexts.find(c => c.id == context.waitCondition.targetContextId)
+            if target == null or target.state == TERMINATED:
+                return Completed { target?.lastReturnValue ?? Nothing }
+            return null
+
+        WAITING_MESSAGE:
+            if context.waitCondition.isFulfilled():
+                runtime.signals.unsubscribe(context.waitCondition.messageName, context)
+                return Completed { context.waitCondition.payload }
+            if context.waitCondition.isTimedOut():
+                runtime.signals.unsubscribe(context.waitCondition.messageName, context)
+                return TimedOut
+            return null
+
+        WAITING_HOST:
+            # Host-driven: the scheduler does NOT resolve this.
+            # The host calls context.resume(outcome, token) directly.
+            # Scheduler only handles timeout if configured.
+            if context.waitCondition.isTimedOut():
+                return TimedOut
+            return null
+
+    return null
+```
+
+### Host Resume Path
+
+For `WAITING_HOST`, fulfillment is the host application's responsibility — the scheduler only checks timeout. The driver calls the host handler *before* yielding (to trigger UI); the host feeds the response back via `context.resume()`.
+
+```
+# Host-side example (game engine / UI framework):
+# The host receives the resumeToken alongside the request.
+# It must pass it back when resuming — stale tokens are rejected.
+
+onChoose(context, request):
+    token = context.resumeToken
+    displayChoiceUI(request, onSelected: (value) ->
+        context.resume(Completed { value }, token)
+    )
+
+onConverse(context, request):
+    token = context.resumeToken
+    displayDialog(request, onDismissed: () ->
+        context.resume(Completed { Nothing }, token)
+    )
+```
 
 ---
 
 ## Execution Model Compatibility
 
-The `Continuation` type decouples **blocking intent** (declared by drivers via `ExecutionResult.continuation`) from **scheduling strategy** (chosen by the implementer). Drivers are written once and work under either model.
+The `WaitRequest` type decouples **blocking intent** (declared by drivers via `Suspend.continuation.request`) from **scheduling strategy** (chosen by the implementer). Drivers are written once and work under either model.
 
 ### Cooperative Tick Model
 
-The host calls `runtime.tick()` periodically. On each tick, the runtime checks each blocked context's `waitCondition` and resumes those whose condition is met. Suitable for game engines and any host with a natural update loop.
+The host calls `runtime.tick()` periodically. On each tick, the runtime checks each blocked context via `resolveWait()` and calls `context.resume(outcome, token)` for those whose condition is met. Suitable for game engines and any host with a natural update loop.
 
 ```
 # Host loop (game engine example):
@@ -611,24 +673,33 @@ while running:
     sleepUntilNextFrame()
 ```
 
-`Context.block()` populates `context.state` and `context.waitCondition`; `Runtime.tick()` reads them unchanged. No tick-loop logic changes are needed to adopt `Continuation`.
+`Context.blockOnRequest()` populates `context.state` and `context.waitCondition`; `resolveWait()` reads them unchanged. No tick-loop logic changes are needed to support new blocking verbs.
 
 ### Async Task Model
 
-Each context runs as an async task. When a `Continuation` is returned, the runtime converts it to an awaitable and suspends the context task until fulfilled. No external tick loop required. Suitable for servers, bots, and cloud hosts.
+Each context runs as an async task. When a `Suspend` is returned, the runtime maps the `WaitRequest` to an awaitable and calls `context.resume()` when fulfilled. No external tick loop required. Suitable for servers, bots, and cloud hosts.
 
 ```
-# Continuation → awaitable mapping (illustrative):
-async fulfillContinuation(c: Continuation, context: Context): Value
-    match c:
-        Sleep { durationMs }      → await asyncSleep(durationMs); return nothing
+async runContextAsync(context: Context):
+    while context.state != TERMINATED:
+        context.run()
+        if context.pendingContinuation != null:
+            token = context.resumeToken
+            outcome = await fulfillAsync(context.pendingContinuation.request)
+            context.resume(outcome, token)
+
+# WaitRequest → awaitable mapping:
+async fulfillAsync(request: WaitRequest): WaitOutcome
+    match request:
+        Sleep { durationMs }      → await asyncSleep(durationMs); return Completed { Nothing }
         ChannelPull { ... }       → return await channel.pullAsync(timeout)
-        ChannelPush { ... }       → await channel.awaitConsumedAsync(seq, timeout); return nothing
-        Message { messageName }   → return await signals.waitAsync(messageName, timeout)
-        Context { contextId }     → return await contexts.awaitTerminationAsync(contextId)
+        ChannelPush { ... }       → return await channel.awaitConsumedAsync(seq, timeout)
+        Signal { messageName }    → return await signals.waitAsync(messageName, timeout)
+        JoinContext { contextId } → return Completed { await contexts.awaitTerminationAsync(contextId) }
+        Host { ... }              → return await host.awaitInteractionAsync(timeout)
 ```
 
-> **Note:** Multi-context parallelism (`/fork`) requires a scheduler under both models — either `tick()` advancing all contexts, or spawning a new async task per forked context. `Continuation` does not change this requirement.
+> **Note:** Multi-context parallelism (`/fork`) requires a scheduler under both models — either `tick()` advancing all contexts, or spawning a new async task per forked context. `WaitRequest` does not change this requirement.
 
 ---
 

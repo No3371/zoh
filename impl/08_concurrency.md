@@ -100,12 +100,12 @@ JumpDriver.execute(call, context):
     else:
         targetStory = context.runtime.loadStory(storyPath.toString())
         if targetStory == null:
-            return fatal("invalid_story", "Story not found: " + storyPath.toString())
-    
+            return Complete { Nothing, [Diagnostic(FATAL, "invalid_story", "Story not found: " + storyPath.toString())] }
+
     # Resolve label position
     labelIndex = targetStory.labels.get(labelName.toLowerCase())
     if labelIndex == null:
-        return fatal("invalid_label", "Label not found: " + labelName)
+        return Complete { Nothing, [Diagnostic(FATAL, "invalid_label", "Label not found: " + labelName)] }
     
     # If changing stories, handle scope transition
     if targetStory != context.currentStory:
@@ -132,8 +132,8 @@ JumpDriver.execute(call, context):
     
     # Jump to label
     context.instructionPointer = labelIndex
-    
-    return ok()
+
+    return Complete { Nothing, [] }
 ```
 
 ### Syntactic Sugar
@@ -178,12 +178,12 @@ ForkDriver.execute(call, context):
     else:
         targetStory = context.runtime.loadStory(storyPath.toString())
         if targetStory == null:
-            return fatal("invalid_story", "Story not found: " + storyPath.toString())
-    
+            return Complete { Nothing, [Diagnostic(FATAL, "invalid_story", "Story not found: " + storyPath.toString())] }
+
     # Resolve label
     labelIndex = targetStory.labels.get(labelName.toLowerCase())
     if labelIndex == null:
-        return fatal("invalid_label", "Label not found: " + labelName)
+        return Complete { Nothing, [Diagnostic(FATAL, "invalid_label", "Label not found: " + labelName)] }
     
     # Create new context
     if shouldClone:
@@ -204,8 +204,8 @@ ForkDriver.execute(call, context):
     # Register and start context
     context.runtime.addContext(newContext)
     context.runtime.scheduleContext(newContext)
-    
-    return ok()
+
+    return Complete { Nothing, [] }
 ```
 
 ### Syntactic Sugar
@@ -250,31 +250,46 @@ CallDriver.execute(call, context):
     else:
         targetStory = context.runtime.loadStory(storyPath.toString())
         if targetStory == null:
-            return fatal("invalid_story", "Story not found: " + storyPath.toString())
-    
+            return Complete { Nothing, [Diagnostic(FATAL, "invalid_story", "Story not found: " + storyPath.toString())] }
+
     # Resolve label
     labelIndex = targetStory.labels.get(labelName.toLowerCase())
     if labelIndex == null:
-        return fatal("invalid_label", "Label not found: " + labelName)
-    
+        return Complete { Nothing, [Diagnostic(FATAL, "invalid_label", "Label not found: " + labelName)] }
+
     newContext = shouldClone ? context.clone() : Context.new(context.runtime)
-    
+
     for ref in initVars:
         value = context.get(ref.name)
         newContext.set(ref.name, value)
-    
+
     newContext.currentStory = targetStory
     newContext.instructionPointer = labelIndex
-    
+
     # Schedule new context
     context.runtime.addContext(newContext)
     context.runtime.scheduleContext(newContext)
-    
-    # Block parent until child done — runtime handles state via Context.block()
-    return ok(continuation: Context {
-        contextId: newContext.id,
-        inlineVars: shouldInline ? initVars : []
-    })
+
+    # Capture references for the closure
+    inlineVars = shouldInline ? initVars : []
+    childId = newContext.id
+
+    # Block parent until child done — inline var copying is in onFulfilled, not the scheduler
+    return Suspend {
+        continuation: Continuation {
+            request: JoinContext { contextId: childId },
+            onFulfilled: (outcome) ->
+                match outcome:
+                    Completed { value }:
+                        for ref in inlineVars:
+                            childCtx = context.runtime.findContext(childId)
+                            val = childCtx?.get(ref.name) ?? Nothing
+                            context.set(ref.name, val)
+                        Complete { value, [] }
+                    Cancelled { code, message }:
+                        Complete { Nothing, [Diagnostic(ERROR, code, message)] }
+        }
+    }
 ```
 
 ### Syntactic Sugar
@@ -406,20 +421,20 @@ OpenDriver.execute(call, context):
     channelRef = resolve(call.params[0], context)
     
     if channelRef is not ChannelValue:
-        return fatal("invalid_type", "Expected channel, got: " + channelRef.getType())
-    
+        return Complete { Nothing, [Diagnostic(FATAL, "invalid_type", "Expected channel, got: " + channelRef.getType())] }
+
     channelName = channelRef.name
-    
+
     hub = context.runtime.channelHubs.getOrCreate(channelName)
     if hub.closed:
         hub = context.runtime.channelHubs.recreate(channelName)
-    
+
     # Initialize context's outbox and inbox for this channel (idempotent)
     if channelName not in context.outboxes:
         context.outboxes[channelName] = Queue.new()
     if channelName not in context.inboxes:
         context.inboxes[channelName] = Queue.new()
-    
+
     # Register context with hub participation dictionary (idempotent)
     if context.id not in hub.participants:
         hub.participants[context.id] = ParticipantState {
@@ -427,8 +442,8 @@ OpenDriver.execute(call, context):
             outbox: context.outboxes[channelName],
             inbox: context.inboxes[channelName]
         }
-    
-    return ok()
+
+    return Complete { Nothing, [] }
 ```
 
 ---
@@ -468,42 +483,52 @@ PushDriver.execute(call, context):
     timeout = getNamedParam(call, "timeout")            # optional, double or null
     
     if channelRef is not ChannelValue:
-        return fatal("invalid_type", "Expected channel, got: " + channelRef.getType())
-    
+        return Complete { Nothing, [Diagnostic(FATAL, "invalid_type", "Expected channel, got: " + channelRef.getType())] }
+
     channelName = channelRef.name
-    
+
     hub = context.runtime.channelHubs.get(channelName)
     if hub == null:
-        return error("not_found", "Channel not found: " + channelName)
+        return Complete { Nothing, [Diagnostic(ERROR, "not_found", "Channel not found: " + channelName)] }
     if hub.closed:
-        return error("closed", "Channel closed: " + channelName)
-    
+        return Complete { Nothing, [Diagnostic(ERROR, "closed", "Channel closed: " + channelName)] }
+
     # Auto-register context if not yet a participant
     ensureParticipant(hub, context, channelName)
-    
+
     seq = hub.sequenceCounter++
-    
+
     # Fast path: if a puller is waiting, deliver directly (skip outbox)
     if hub.waitingPullers.hasNext():
         target = hub.waitingPullers.dequeue()
         targetState = hub.participants[target.id]
         targetState.inbox.enqueue(value)
-        target.state = RUNNING
-        target.waitCondition = null
-        return ok()    # Value consumed immediately — no blocking needed
-    
+        target.resume(Completed { value }, target.resumeToken)
+        return Complete { Nothing, [] }    # Value consumed immediately — no blocking needed
+
     # No puller waiting — park value in pusher's outbox
     participantState = hub.participants[context.id]
     participantState.outbox.enqueue((value, seq))
-    
-    if wait:
-        # Block until this specific value is consumed — runtime handles enqueue + state
-        return ok(continuation: ChannelPush {
-            channelName, seqNum: seq, generation: hub.generation,
-            timeoutMs: timeout != null ? resolve(timeout, context).toDouble() * 1000 : null
-        })
 
-    return ok()
+    if wait:
+        timeoutMs = timeout != null ? resolve(timeout, context).toDouble() * 1000 : null
+        return Suspend {
+            continuation: Continuation {
+                request: ChannelPush {
+                    channelName, seqNum: seq, generation: hub.generation, timeoutMs
+                },
+                onFulfilled: (outcome) ->
+                    match outcome:
+                        Completed { _ }:
+                            Complete { Nothing, [] }
+                        TimedOut:
+                            Complete { Nothing, [Diagnostic(INFO, "timeout", "Push timed out")] }
+                        Cancelled { code, message }:
+                            Complete { Nothing, [Diagnostic(ERROR, code, message)] }
+            }
+        }
+
+    return Complete { Nothing, [] }
 ```
 
 ---
@@ -533,24 +558,24 @@ PullDriver.execute(call, context):
     timeout = getNamedParam(call, "timeout")
     
     if channelRef is not ChannelValue:
-        return fatal("invalid_type", "Expected channel, got: " + channelRef.getType())
-    
+        return Complete { Nothing, [Diagnostic(FATAL, "invalid_type", "Expected channel, got: " + channelRef.getType())] }
+
     channelName = channelRef.name
-    
+
     hub = context.runtime.channelHubs.get(channelName)
     if hub == null:
-        return error("not_found", "Channel not found: " + channelName)
+        return Complete { Nothing, [Diagnostic(ERROR, "not_found", "Channel not found: " + channelName)] }
     if hub.closed:
-        return error("closed", "Channel closed: " + channelName)
-    
+        return Complete { Nothing, [Diagnostic(ERROR, "closed", "Channel closed: " + channelName)] }
+
     # Auto-register context if not yet a participant
     ensureParticipant(hub, context, channelName)
-    
+
     # Check own inbox first (previously dispatched values)
     myState = hub.participants[context.id]
     if myState.inbox.hasValue():
-        return ok(myState.inbox.dequeue())
-    
+        return Complete { myState.inbox.dequeue(), [] }
+
     # Scan participating outboxes — find lowest sequence number
     # NOTE: This scan-and-dequeue MUST be atomic (hub-level lock)
     bestSource = null
@@ -561,23 +586,34 @@ PullDriver.execute(call, context):
             if seq < bestSeq:
                 bestSeq = seq
                 bestSource = state
-    
+
     if bestSource != null:
         (value, consumedSeq) = bestSource.outbox.dequeue()
-        
+
         # Wake the pusher if they're blocked on a waited push for this value
         if hub.waitingPushers.contains(bestSource.context, consumedSeq):
             hub.waitingPushers.remove(bestSource.context, consumedSeq)
-            bestSource.context.state = RUNNING
-            bestSource.context.waitCondition = null
-        
-        return ok(value)
-    
-    # Nothing available — block; runtime handles enqueue + state via Context.block()
-    return ok(continuation: ChannelPull {
-        channelName, generation: hub.generation,
-        timeoutMs: timeout != null ? resolve(timeout, context).toDouble() * 1000 : null
-    })
+            bestSource.context.resume(Completed { Nothing }, bestSource.context.resumeToken)
+
+        return Complete { value, [] }
+
+    # Nothing available — block
+    timeoutMs = timeout != null ? resolve(timeout, context).toDouble() * 1000 : null
+    return Suspend {
+        continuation: Continuation {
+            request: ChannelPull {
+                channelName, generation: hub.generation, timeoutMs
+            },
+            onFulfilled: (outcome) ->
+                match outcome:
+                    Completed { value }:
+                        Complete { value, [] }
+                    TimedOut:
+                        Complete { Nothing, [Diagnostic(INFO, "timeout", "Pull timed out")] }
+                    Cancelled { code, message }:
+                        Complete { Nothing, [Diagnostic(ERROR, code, message)] }
+        }
+    }
 ```
 
 ---
@@ -598,37 +634,33 @@ CloseDriver.execute(call, context):
     channelRef = resolve(call.params[0], context)
     
     if channelRef is not ChannelValue:
-        return fatal("invalid_type", "Expected channel")
-    
+        return Complete { Nothing, [Diagnostic(FATAL, "invalid_type", "Expected channel")] }
+
     channelName = channelRef.name
-    
+
     hub = context.runtime.channelHubs.get(channelName)
     if hub == null:
-        return error("not_found", "Channel does not exist: " + channelName)
+        return Complete { Nothing, [Diagnostic(ERROR, "not_found", "Channel does not exist: " + channelName)] }
     if hub.closed:
-        return error("closed", "Channel already closed: " + channelName)
-    
+        return Complete { Nothing, [Diagnostic(ERROR, "closed", "Channel already closed: " + channelName)] }
+
     hub.closed = true
     hub.generation++
-    
+
     # Wake all blocked pullers with close error
     while hub.waitingPullers.hasNext():
         waiter = hub.waitingPullers.dequeue()
-        waiter.state = RUNNING
-        waiter.lastDiagnostics = [Diagnostic(ERROR, "closed", "Channel closed")]
-        waiter.waitCondition = null
-    
+        waiter.resume(Cancelled { "closed", "Channel closed" }, waiter.resumeToken)
+
     # Wake all blocked waited pushers with close error
     while hub.waitingPushers.hasNext():
         (pusher, seq) = hub.waitingPushers.dequeue()
-        pusher.state = RUNNING
-        pusher.lastDiagnostics = [Diagnostic(ERROR, "closed", "Channel closed")]
-        pusher.waitCondition = null
-    
+        pusher.resume(Cancelled { "closed", "Channel closed" }, pusher.resumeToken)
+
     # Hub is NOT removed — kept with closed=true so subsequent
     # push/pull returns "closed" (not "not_found"), and generation
     # is preserved for /open re-creation.
-    return ok()
+    return Complete { Nothing, [] }
 ```
 
 ---
@@ -650,11 +682,22 @@ WaitDriver.execute(call, context):
     name = resolve(call.params[0], context).toString()
     timeout = getNamedParam(call, "timeout")?.toDouble()
 
-    # Runtime handles signals.subscribe + state via Context.block(Message {...})
-    return ok(continuation: Message {
-        messageName: name,
-        timeoutMs: timeout != null ? timeout * 1000 : null
-    })
+    return Suspend {
+        continuation: Continuation {
+            request: Signal {
+                messageName: name,
+                timeoutMs: timeout != null ? timeout * 1000 : null
+            },
+            onFulfilled: (outcome) ->
+                match outcome:
+                    Completed { value }:
+                        Complete { value, [] }
+                    TimedOut:
+                        Complete { Nothing, [Diagnostic(INFO, "timeout", "Wait timed out")] }
+                    Cancelled { code, message }:
+                        Complete { Nothing, [Diagnostic(ERROR, code, message)] }
+        }
+    }
 ```
 
 ### Signal
@@ -671,7 +714,7 @@ SignalDriver.execute(call, context):
     message = resolve(call.params[1], context)
     
     context.runtime.broadcastMessage(name, message)
-    return ok()
+    return Complete { Nothing, [] }
 ```
 
 ---
@@ -698,7 +741,12 @@ SleepDriver.execute(call, context):
 
     duration = seconds.toDouble()
 
-    return ok(continuation: Sleep { durationMs: duration * 1000 })
+    return Suspend {
+        continuation: Continuation {
+            request: Sleep { durationMs: duration * 1000 },
+            onFulfilled: (_) -> Complete { Nothing, [] }
+        }
+    }
 ```
 
 ---
@@ -720,7 +768,7 @@ FlagDriver.execute(call, context):
     value = resolve(call.params[1], context)
     
     context.setFlag(name, value)
-    return ok()
+    return Complete { Nothing, [] }
 
 # Flags are copied to forked contexts
 Context.clone():

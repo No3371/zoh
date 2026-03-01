@@ -1,10 +1,12 @@
 # Two-Phase Continuation Model — Spec Update
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Created:** 2026-03-01
+> **Completed:** 2026-03-01
 > **Author:** agent
 > **Source:** `20260301-two-phase-continuation-model-proposal.md`
 > **Related Projex:** `20260301-continuation-resume-ip-gap-eval.md`, `20260301-two-phase-continuation-csharp-impl-plan.md`
+> **Walkthrough:** `20260301-two-phase-continuation-spec-update-walkthrough.md`
 
 ---
 
