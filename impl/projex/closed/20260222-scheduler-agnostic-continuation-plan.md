@@ -53,7 +53,7 @@ Drivers currently block by calling `context.state = SLEEPING` / `context.waitCon
 
 ### Dependencies
 - **Requires:** Nothing — spec-only change
-- **Blocks:** C# implementation of async verb driver interface (separate plan, `c#/projects/`)
+- **Blocks:** C# implementation of async verb driver interface (separate plan, `csharp/projects/`)
 
 ---
 

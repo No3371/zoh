@@ -187,7 +187,7 @@ None — all planned files were updated.
 ## Recommendations
 
 ### Immediate Follow-ups
-- [ ] Execute C# implementation plan: `c#/projex/20260207-remove-flag-sugar-csharp-plan.md`
+- [ ] Execute C# implementation plan: `csharp/projex/20260207-remove-flag-sugar-csharp-plan.md`
 
 ### Plan Improvements
 If this plan were to be executed again:

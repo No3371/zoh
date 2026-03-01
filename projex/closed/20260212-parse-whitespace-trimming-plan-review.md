@@ -125,7 +125,7 @@ In the C# runtime (`ParseDriver.cs`), whitespace is handled inconsistently:
 
 ### Action Items
 - [ ] Implement [Plan: Parse Verb Whitespace Trimming (Spec)](./20260208-parse-whitespace-trimming-plan.md).
-- [ ] Implement [Plan: C# Implementation](../c#/projex/20260208-parse-whitespace-trimming-csharp-plan.md).
+- [ ] Implement [Plan: C# Implementation](../csharp/projex/20260208-parse-whitespace-trimming-csharp-plan.md).
 
 ---
 

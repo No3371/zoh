@@ -47,7 +47,7 @@ The current checkpoint definition in `spec.md` only documents variable existence
 
 ### Dependencies
 - **Requires:** Proposal acceptance (Completed).
-- **Blocks:** [C# Implementation Plan](c#/projex/20260208-checkpoint-type-contract-impl-plan.md)
+- **Blocks:** [C# Implementation Plan](csharp/projex/20260208-checkpoint-type-contract-impl-plan.md)
 
 ### Constraints
 - Must align exactly with the accepted proposal.

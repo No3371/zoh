@@ -37,7 +37,7 @@ A first-class `/assert` verb makes invariants self-documenting, reduces boilerpl
 - [x] [PATCHED] Parameter acceptance rules follow established spec patterns
 
 ### Out of Scope
-- Implementation in the C# runtime (separate plan in `c#/projex/`)
+- Implementation in the C# runtime (separate plan in `csharp/projex/`)
 - Implementation spec in `impl/` (separate plan in `impl/projex/`)
 - Changes to `AGENT.md` quick-reference table (should follow in a separate update)
 - Syntactic sugar forms

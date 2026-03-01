@@ -5,7 +5,7 @@
 > **Author:** Antigravity
 > **Source:** Direct request / [Analysis](../../../checkpoint-parsing-analysis.md)
 > **Related Projex:** 
-> - Blocks: [C# Implementation Plan](../../../c#/projex/20260208-virtual-checkpoint-token-csharp-plan.md)
+> - Blocks: [C# Implementation Plan](../../../csharp/projex/20260208-virtual-checkpoint-token-csharp-plan.md)
 
 ---
 

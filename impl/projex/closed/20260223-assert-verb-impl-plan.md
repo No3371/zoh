@@ -47,7 +47,7 @@ The language specification was recently updated to include `Core.Assert` (in `sp
 
 ### Dependencies
 - **Requires:** `projex/closed/20260223-assert-verb-spec-patch.md` (Completed)
-- **Blocks:** C# Runtime implementation plan (to be created later in `c#/projex/`)
+- **Blocks:** C# Runtime implementation plan (to be created later in `csharp/projex/`)
 
 ### Constraints
 - Pseudocode must follow the conventions set in `impl/`.

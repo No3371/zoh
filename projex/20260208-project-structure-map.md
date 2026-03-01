@@ -34,7 +34,7 @@ S:\Repos\zoh/
 ├── GEMINI.md                       — Symlink to AGENT.md
 ├── _fluid_.md                      — The fluid memory for general global context/rules
 │
-├── c#/                             — C# reference implementation
+├── csharp/                             — C# reference implementation
 │   ├── Zoh.sln                     — Visual Studio solution file
 │   ├── src/Zoh.Runtime/            — Runtime library source code
 │   │   ├── Lexing/                 — Tokenization (Lexer, Token, TokenType, TextPosition)
@@ -147,7 +147,7 @@ S:\Repos\zoh/
 - **Test files**: `*Tests.cs` for unit tests, `*ComplianceTests.cs` for spec compliance tests
 
 ### Directory Organization
-- **Separated concerns**: Spec files (root), implementation (c#/), impl specs (impl/), project mgmt (projex/)
+- **Separated concerns**: Spec files (root), implementation (csharp/), impl specs (impl/), project mgmt (projex/)
 - **Test mirroring**: Test directory structure mirrors source directory structure exactly
 - **Closure tracking**: All project directories have `closed/` subdirectories for completed work
 - **Agent configs**: `.agent/` directories for AI assistant workflows, skills, and rules
@@ -181,5 +181,5 @@ S:\Repos\zoh/
 | Date | Author | Changes |
 |------|--------|---------|
 | 2026-02-08 | Claude Sonnet 4.5 | Initial map creation — surveyed entire repository structure, documented all major directories and key files |
-| 2026-02-12 | Antigravity | Revised map — updated spec/ structure, added symlink details for CLAUDE.md/GEMINI.md, listed active projex items in c#/ and root directories. |
+| 2026-02-12 | Antigravity | Revised map — updated spec/ structure, added symlink details for CLAUDE.md/GEMINI.md, listed active projex items in csharp/ and root directories. |
 | 2026-02-22 | Antigravity | Revised map — documented `spec/` directory refactoring, `_fluid_.md` addition, and removal of dead `projects/` and `review/` directories. |

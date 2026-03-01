@@ -6,7 +6,7 @@
 > **Walkthrough:** [Walkthrough](20260207-remove-flag-sugar-walkthrough.md)
 > **Author:** Agent
 > **Source:** Direct request
-> **Related Projex:** [C# Implementation](../c#/projex/20260207-remove-flag-sugar-csharp-plan.md)
+> **Related Projex:** [C# Implementation](../csharp/projex/20260207-remove-flag-sugar-csharp-plan.md)
 
 ---
 

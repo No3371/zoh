@@ -264,8 +264,8 @@ public async Task RunAsync(Context ctx, CompiledStory story)
 Code review of `IVerbDriver.cs`, `ZohRuntime.cs`, `IExecutionContext.cs`, `VerbResult.cs`, cross-referenced against `impl/09_runtime.md` and `impl/08_concurrency.md`.
 
 ### Sources
-- `c#/src/Zoh.Runtime/Verbs/IVerbDriver.cs` — current synchronous interface
-- `c#/src/Zoh.Runtime/Execution/ZohRuntime.cs` — synchronous `Run()` and `ExecuteVerb()`
-- `c#/src/Zoh.Runtime/Execution/IExecutionContext.cs` — `SetState()` as driver side-effect mechanism
+- `csharp/src/Zoh.Runtime/Verbs/IVerbDriver.cs` — current synchronous interface
+- `csharp/src/Zoh.Runtime/Execution/ZohRuntime.cs` — synchronous `Run()` and `ExecuteVerb()`
+- `csharp/src/Zoh.Runtime/Execution/IExecutionContext.cs` — `SetState()` as driver side-effect mechanism
 - `impl/09_runtime.md` — spec's tick-loop model, `Runtime.tick()`, `VerbDriver.execute()` signatures
 - `impl/08_concurrency.md` — spec's cooperative blocking pattern for Sleep, Push, Pull, Wait

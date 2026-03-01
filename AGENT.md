@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ZOH is an embedded scripting language for interactive storytelling. Everything in ZOH is a "verb" - characters `/converse`, scenes `/show`, music `/play`. Even core language features like variables (`/set`), conditionals (`/if`), and loops (`/while`) are verbs.
 
-**Key File/Dir**: `spec/` (complete language spec), `impl/` (implementation specs), `c#/` (C# runtime), `projex/` (repository for tasks/projects/proposals)
+**Key File/Dir**: `spec/` (complete language spec), `impl/` (implementation specs), `csharp/` (C# runtime), `projex/` (repository for tasks/projects/proposals)
 
 ## C# Reference Implementation
 
