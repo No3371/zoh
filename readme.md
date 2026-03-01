@@ -1,3 +1,5 @@
+[![C#](https://img.shields.io/badge/c%23-%23239120.svg?style=for-the-badge&logo=csharp&logoColor=white)](https://github.com/No3371/zoh_csharp)
+
 # ZOH Language Spec
 
 ZOH (咒) is an embedded scripting language built for storytelling but authored and run like a general programming language.
