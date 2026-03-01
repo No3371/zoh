@@ -127,6 +127,10 @@ Context:
         instructionPointer++
         continue
 
+      # Capture state before execution to detect jumps
+      entryIp = instructionPointer
+      entryStory = currentStory
+
       try:
         result = driver.execute(call, this)
       catch FatalError as e:
@@ -134,17 +138,19 @@ Context:
         terminate()
         return
 
-      applyResult(result)
+      applyResult(result, entryIp, entryStory)
 
   # Unified result handler — used by both run() and resume().
-  applyResult(result: DriverResult):
+  # entryIp/entryStory: IP and story before driver execution.
+  # IP only advances if they match current values (jump guard).
+  applyResult(result: DriverResult, entryIp: int, entryStory: CompiledStory):
     match result:
       Complete { value, diagnostics }:
         lastReturnValue = value
         lastDiagnostics = diagnostics
         if hasFatal(diagnostics):
           terminate()
-        else:
+        elif instructionPointer == entryIp and currentStory == entryStory:
           instructionPointer++
           # run() loop continues to next statement
 
@@ -174,7 +180,7 @@ Context:
 
     result = handler(outcome)
     state = RUNNING
-    applyResult(result)
+    applyResult(result, instructionPointer, currentStory)
     # If Complete → IP advances, run() can continue
     # If Suspend  → re-blocks, IP stays, new continuation stored
 
@@ -602,7 +608,7 @@ The instruction pointer question resolves cleanly under this model:
                statement        wait again
 ```
 
-**IP only advances on `Complete`.** A verb that suspends keeps IP at its statement until the entire continuation chain resolves. This is correct: the verb is "in progress" until it produces a final value.
+**IP only advances on `Complete`, and only when the driver hasn't already modified it** (jump guard). A verb that suspends keeps IP at its statement until the entire continuation chain resolves. Jump verbs modify IP directly and return `Complete` — the guard detects this and skips the automatic increment.
 
 ---
 
