@@ -104,6 +104,7 @@ Context:
   state: ContextState
   pendingContinuation: Continuation?    # Stored while blocked
   waitCondition: WaitCondition?         # For scheduler to check
+  resumeToken: int                      # Incremented on each Suspend; callers must match
 
   run():
     while state == RUNNING:
@@ -149,17 +150,23 @@ Context:
 
       Suspend { continuation, diagnostics }:
         lastDiagnostics = diagnostics
+        resumeToken++
         pendingContinuation = continuation
         blockOnRequest(continuation.request)
         # state is now SLEEPING/WAITING_*
         # run() loop exits (state != RUNNING)
 
   # Called by the scheduler OR the host when the wait condition is met.
-  # Guard: only the first caller wins. Subsequent calls are no-ops.
-  # This prevents races between scheduler timeout and host fulfillment.
-  resume(outcome: WaitOutcome):
+  #
+  # token: must match the current resumeToken. Rejects stale resumes
+  #   (e.g., host responds after timeout already advanced the context).
+  #   The scheduler reads context.resumeToken when it detects fulfillment.
+  #   The host receives it via the handler callback (onChoose, onConverse, etc.).
+  resume(outcome: WaitOutcome, token: int):
+    if token != resumeToken:
+      return    # Stale token — context has moved on
     if pendingContinuation == null:
-      return    # Already resumed (race loser) — no-op
+      return    # Already resumed (race loser on same token) — no-op
 
     handler = pendingContinuation.onFulfilled
     pendingContinuation = null
@@ -221,9 +228,10 @@ The scheduler becomes a pure **condition resolver**. It checks each blocked cont
 Runtime.tick():
   for context in contexts:
     if context.state != RUNNING and context.state != TERMINATED:
+      token = context.resumeToken
       outcome = resolveWait(context)
       if outcome != null:
-        context.resume(outcome)
+        context.resume(outcome, token)
 
     if context.state == RUNNING:
       context.run()
@@ -288,11 +296,20 @@ resolveWait(context: Context): WaitOutcome?
 
 ```
 # Host-side (game engine, UI framework, etc.):
-onPlayerChoseOption(context, selectedValue):
-  context.resume(Completed { selectedValue })
+# The host handler receives the resumeToken alongside the request.
+# It must pass it back when resuming — stale tokens are rejected.
 
-onPlayerDismissedDialog(context):
-  context.resume(Completed { Nothing })
+onChoose(context, request):
+  token = context.resumeToken
+  displayChoiceUI(request, onSelected: (value) ->
+    context.resume(Completed { value }, token)
+  )
+
+onConverse(context, request):
+  token = context.resumeToken
+  displayDialog(request, onDismissed: () ->
+    context.resume(Completed { Nothing }, token)
+  )
 ```
 
 ### Async Task Scheduler
