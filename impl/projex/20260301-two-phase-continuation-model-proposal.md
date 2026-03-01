@@ -154,8 +154,13 @@ Context:
         # state is now SLEEPING/WAITING_*
         # run() loop exits (state != RUNNING)
 
-  # Called by the scheduler when the wait condition is met.
+  # Called by the scheduler OR the host when the wait condition is met.
+  # Guard: only the first caller wins. Subsequent calls are no-ops.
+  # This prevents races between scheduler timeout and host fulfillment.
   resume(outcome: WaitOutcome):
+    if pendingContinuation == null:
+      return    # Already resumed (race loser) — no-op
+
     handler = pendingContinuation.onFulfilled
     pendingContinuation = null
     waitCondition = null
