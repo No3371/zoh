@@ -243,6 +243,7 @@ For exmaple, `"Hello, ${*name}!"` should be interpolated to "Hello, John!" if `*
 Interpolation should also support:
 - Formatting: C# composite format parity `${var[,width][:formatString]}`.
     - Examples: `/itpl "|${"Left",-7}|${"Right",7}|"` is `"|Left   |  Right|`. `/itpl "My balance is ${*balance,8:N1}."` is `"My balance is     100.0"`
+    - This can not be used with the following feature syntaxes.
 - Unrolling: `${*var..."delim"}` to expand `*[list]` and `*{map}` into `{element}{delim}{element}...` where `element`s are the list elements or map k:v pairs.
     - Example: `/itpl "I have ${*inv...", "}."` is `"I have potion, sword, pie."`
 - Parity of `/count` for `$#{*var}`.
@@ -326,6 +327,7 @@ The result of the expression, type depends on the expression.
 /eval `*var+1`;
 /eval `(*int*10-1)/5.5`;
 /eval `*str1+*str2`;
+/eval `$*str1+$"str2str";
 /eval `*list1+*list2`;
 /eval `*verb1+*verb2`;
 /eval `*bool1==*bool2`;
