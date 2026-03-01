@@ -4,7 +4,7 @@
 > **Author:** agent
 > **Subject:** Whether the runtime spec correctly handles resumption after a blocking verb yields via continuation
 > **Type:** Gap Analysis
-> **Related Projex:** —
+> **Related Projex:** `20260301-two-phase-continuation-model-proposal.md` (supersedes this eval's fix recommendation)
 
 ---
 
