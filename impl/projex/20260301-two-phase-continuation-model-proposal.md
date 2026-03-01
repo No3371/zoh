@@ -71,7 +71,7 @@ WaitRequest:
   | ChannelPush { channelName: string, seqNum: int, generation: int, timeoutMs: double? }
   | Signal      { messageName: string, timeoutMs: double? }
   | JoinContext { contextId: string }
-  | Host        { interactionType: string, timeoutMs: double? }
+  | Host        { timeoutMs: double? }
 
 # === WAIT OUTCOME ===
 # What actually happened. Produced by the runtime, consumed by onFulfilled.
@@ -79,7 +79,7 @@ WaitRequest:
 WaitOutcome:
   | Completed { value: Value }        # Condition met, here's the result
   | TimedOut                          # Deadline expired
-  | Cancelled { reason: Diagnostic }  # Channel closed, context gone, etc.
+  | Cancelled { code: string, message: string }  # Channel closed, context gone, etc.
 ```
 
 ### Design Rationale
@@ -201,10 +201,10 @@ Context:
         state = WAITING_CONTEXT
         waitCondition = ContextWaitCondition { targetContextId: contextId }
 
-      Host { interactionType, timeoutMs }:
+      Host { timeoutMs }:
         state = WAITING_HOST
         waitCondition = HostWaitCondition {
-          interactionType, startTime: now(), timeout: timeoutMs
+          startTime: now(), timeout: timeoutMs
         }
 ```
 
@@ -233,9 +233,9 @@ resolveWait(context: Context): WaitOutcome?
     WAITING_CHANNEL:
       hub = runtime.channelHubs.get(context.waitCondition.channelName)
       if hub == null:
-        return Cancelled { Diagnostic(ERROR, "not_found", "Channel not found") }
+        return Cancelled { "not_found", "Channel not found" }
       if hub.closed:
-        return Cancelled { Diagnostic(ERROR, "closed", "Channel closed") }
+        return Cancelled { "closed", "Channel closed" }
       if context.waitCondition.isTimedOut():
         hub.waitingPullers.remove(context)
         return TimedOut
@@ -245,9 +245,9 @@ resolveWait(context: Context): WaitOutcome?
     WAITING_CHANNEL_PUSH:
       hub = runtime.channelHubs.get(context.waitCondition.channelName)
       if hub == null:
-        return Cancelled { Diagnostic(ERROR, "not_found", "Channel not found") }
+        return Cancelled { "not_found", "Channel not found" }
       if hub.closed:
-        return Cancelled { Diagnostic(ERROR, "closed", "Channel closed") }
+        return Cancelled { "closed", "Channel closed" }
       if context.waitCondition.isTimedOut():
         hub.waitingPushers.remove(context, context.waitCondition.seq)
         return TimedOut
@@ -310,7 +310,7 @@ async fulfillAsync(request: WaitRequest): WaitOutcome
     ChannelPush { ... }        -> return await channel.awaitConsumedAsync(seq, timeout)
     Signal { messageName }     -> return await signals.waitAsync(messageName, timeout)
     JoinContext { contextId }  -> return Completed { await contexts.awaitTerminationAsync(contextId) }
-    Host { interactionType }   -> return await host.awaitInteractionAsync(interactionType, timeout)
+    Host { ... }               -> return await host.awaitInteractionAsync(timeout)
 ```
 
 ---
@@ -360,8 +360,8 @@ PullDriver.execute(call, context):
             Complete { value, [] }
           TimedOut:
             Complete { Nothing, [Diagnostic(INFO, "timeout", "Pull timed out")] }
-          Cancelled { reason }:
-            Complete { Nothing, [reason] }
+          Cancelled { code, message }:
+            Complete { Nothing, [Diagnostic(ERROR, code, message)] }
     }
   }
 ```
@@ -414,8 +414,8 @@ CallDriver.execute(call, context):
               val = childCtx?.get(ref.name) ?? Nothing
               context.set(ref.name, val)
             Complete { value, [] }
-          Cancelled { reason }:
-            Complete { Nothing, [reason] }
+          Cancelled { code, message }:
+            Complete { Nothing, [Diagnostic(ERROR, code, message)] }
     }
   }
 ```
@@ -436,8 +436,8 @@ WaitDriver.execute(call, context):
             Complete { value, [] }
           TimedOut:
             Complete { Nothing, [Diagnostic(INFO, "timeout", "Wait timed out")] }
-          Cancelled { reason }:
-            Complete { Nothing, [reason] }
+          Cancelled { code, message }:
+            Complete { Nothing, [Diagnostic(ERROR, code, message)] }
     }
   }
 ```
@@ -475,8 +475,8 @@ PushDriver.execute(call, context):
             Complete { Nothing, [] }
           TimedOut:
             Complete { Nothing, [Diagnostic(INFO, "timeout", "Push timed out")] }
-          Cancelled { reason }:
-            Complete { Nothing, [reason] }
+          Cancelled { code, message }:
+            Complete { Nothing, [Diagnostic(ERROR, code, message)] }
     }
   }
 ```
@@ -509,7 +509,7 @@ ChooseDriver.execute(call, context):
   # Yield — host calls context.resume() when player picks
   return Suspend {
     continuation: Continuation {
-      request: Host { interactionType: "choose", timeoutMs: timeout ? timeout * 1000 : null },
+      request: Host { timeoutMs: timeout ? timeout * 1000 : null },
       onFulfilled: (outcome) ->
         match outcome:
           Completed { value }:
@@ -519,8 +519,8 @@ ChooseDriver.execute(call, context):
             Complete { value, [] }
           TimedOut:
             Complete { Nothing, [Diagnostic(INFO, "timeout", "Choose timed out")] }
-          Cancelled { reason }:
-            Complete { Nothing, [reason] }
+          Cancelled { code, message }:
+            Complete { Nothing, [Diagnostic(ERROR, code, message)] }
     }
   }
 ```
@@ -544,7 +544,7 @@ ConverseDriver.execute(call, context):
   # Yield for host acknowledgment (player dismisses dialog)
   return Suspend {
     continuation: Continuation {
-      request: Host { interactionType: "converse" },
+      request: Host {},
       onFulfilled: (_) -> Complete { Nothing, [] }
     }
   }
@@ -619,9 +619,9 @@ The `ContextState` enum (`SLEEPING`, `WAITING_CHANNEL`, etc.) is retained for th
 
 ### Host-Defined Wait Conditions
 
-`Host { interactionType, timeoutMs }` is a core `WaitRequest` variant. The `interactionType` string is an open tag — the runtime does not interpret it. The scheduler only checks timeout; fulfillment is the host's responsibility via `context.resume(outcome)`. This covers all presentation verbs (`/converse`, `/choose`, `/prompt`, `/choosefrom`) and any future host-specific interactions without requiring new `WaitRequest` variants or `ContextState` entries.
+`Host { timeoutMs }` is a core `WaitRequest` variant. The scheduler only checks timeout; fulfillment is the host's responsibility via `context.resume(outcome)`. The host already knows what interaction is happening because the driver calls the host handler (e.g., `onChoose()`, `onConverse()`) *before* yielding — no tag needed.
 
-The host can also use the `/wait` + `/signal` pattern for fire-and-forget events. `Host` is for synchronous request/response interactions where the driver needs the host's answer before it can complete.
+This covers all presentation verbs (`/converse`, `/choose`, `/prompt`, `/choosefrom`) and any future host-specific interactions without requiring new `WaitRequest` variants or `ContextState` entries. The host can also use the `/wait` + `/signal` pattern for fire-and-forget events. `Host` is for synchronous request/response interactions where the driver needs the host's answer before it can complete.
 
 ---
 
