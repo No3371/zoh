@@ -1,5 +1,5 @@
 Murder Mystery
-author: Ink Sample Conversion;
+author: Ink Sample Conversion (Spec-aligned);
 ===
 
 :: ============================================================================
@@ -54,15 +54,40 @@ author: Ink Sample Conversion;
 /exit;
 
 @_fn_reached
-:: Check if knowledge reached. Input: *_arg_state, Output: captured boolean
-/has *knowledgeState, *_arg_state;
-/exit;
+:: Check if knowledge reached. Input: *_arg_state
+/has *knowledgeState, *_arg_state; -> *_ret;
+/exit *_ret;
 
 @_fn_reach
-:: Add knowledge state. Input: *_arg_state
+:: Add knowledge state (chain-aware). Input: *_arg_state
 /has *knowledgeState, *_arg_state; -> *_already;
 /if *_already, /exit;;
-/append *knowledgeState, *_arg_state;
+
+*_chain <- [];
+/has *Chain_BedKnowledge, *_arg_state; -> *_in_bed;
+/has *Chain_KnifeKnowledge, *_arg_state; -> *_in_knife;
+/has *Chain_WindowKnowledge, *_arg_state; -> *_in_window;
+
+/if *_in_bed, *_chain <- *Chain_BedKnowledge;;
+/if *_in_knife, *_chain <- *Chain_KnifeKnowledge;;
+/if *_in_window, *_chain <- *Chain_WindowKnowledge;;
+
+/count *_chain; -> *_chain_count;
+/if `*_chain_count == 0`, /sequence/
+    /append *knowledgeState, *_arg_state;
+    /exit;
+/;;
+
+*_stop <- false;
+/foreach/ *_chain *_it
+    /sequence/
+        /if `!*_stop`, /sequence/
+            /has *knowledgeState, *_it; -> *_has_it;
+            /if `!*_has_it`, /append *knowledgeState, *_it;;
+            /if `*_it == *_arg_state`, *_stop <- true;;
+        /;;
+    /;
+/;
 /exit;
 
 @_fn_between
@@ -70,8 +95,7 @@ author: Ink Sample Conversion;
 :: Returns true if start reached but end not reached
 /has *knowledgeState, *_arg_start; -> *_has_start;
 /has *knowledgeState, *_arg_end; -> *_has_end;
-$`*_has_start && !*_has_end`;
-/exit;
+/exit `*_has_start && !*_has_end`;
 
 :: ============================================================================
 :: MURDER SCENE - MAIN
@@ -110,8 +134,8 @@ $`*_has_start && !*_has_end`;
 :: Knock with cane
 /has *_visited, "reaching"; -> *_did_reaching;
 /has *Inventory, "cane"; -> *_has_cane;
-/get *_turn_at, "reaching"; -> *_turn_reaching;
-$`*_turn_counter - *_turn_reaching`; -> *_since_reaching;
+/get *_turn_at["reaching"]; -> *_turn_reaching;
+/eval `*_turn_counter - *_turn_reaching`; -> *_since_reaching;
 /if `*_did_reaching && *_since_reaching >= 4 && *_has_cane`, /append *_choices, {"Use the cane to reach under the bed": "knock_cane"};;
 
 :: Pick up knife
@@ -127,8 +151,8 @@ $`*_turn_counter - *_turn_reaching`; -> *_since_reaching;
 /if `!*_did_desk`, /append *_choices, {"The desk...": "desk"};;
 
 :: Swoosh cane (conditional on timing)
-/get *_turn_at, "deskstate"; -> *_turn_desk;
-$`*_turn_counter - *_turn_desk`; -> *_since_desk;
+/get *_turn_at["deskstate"]; -> *_turn_desk;
+/eval `*_turn_counter - *_turn_desk`; -> *_since_desk;
 /if `*_has_cane && *_since_desk <= 2`, /append *_choices, {"Swoosh the cane": "swoosh"};;
 
 :: The window (one-time)  
@@ -136,14 +160,14 @@ $`*_turn_counter - *_turn_desk`; -> *_since_desk;
 /if `!*_did_window`, /append *_choices, {"The window...": "window"};;
 
 :: Leave room (after 5 visits to top)
-/get *_visited, "top"; -> *_top_count;
+/get *_visited["top"]; -> *_top_count;
 /any *_top_count; -> *_has_top;
 /if `!*_has_top`, *_top_count <- 0;;
 /if `*_top_count >= 5`, /append *_choices, {"Leave the room": "leave"};;
 
 :: Track top visits
 /increase *_top_count;
-/set "_visited", "top", *_top_count;
+/set *_visited["top"], *_top_count;
 
 :: Show choices
 /count *_choices; -> *_choice_count;
@@ -171,8 +195,8 @@ $`*_turn_counter - *_turn_desk`; -> *_since_desk;
 :: ============================================================================
 
 @dobed
-/set "_visited", "dobed", true;
-/set "_turn_at", "dobed", *_turn_counter;
+/set *_visited["dobed"], true;
+/set *_turn_at["dobed"], *_turn_counter;
 /converse "The bed was low to the ground, but not so low something might not roll underneath. It was still neatly made.";
 *_arg_state <- "neatly_made";
 <===+ @_fn_reach *_arg_state;
@@ -203,8 +227,8 @@ $`*_turn_counter - *_turn_desk`; -> *_since_desk;
 /if `!*_did_dark`, /append *_bed_choices, {"Look under the bed": "dark"};;
 
 :: Something else (after 1 turn)
-/get *_turn_at, "dobed"; -> *_turn_dobed;
-$`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
+/get *_turn_at["dobed"]; -> *_turn_dobed;
+/eval `*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 /if `*_since_dobed > 1`, /append *_bed_choices, {"Something else?": "back"};;
 
 /chooseFrom *_bed_choices; -> *_bed_choice;
@@ -223,7 +247,7 @@ $`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 /do *_action;;
 
 @bed_lift
-/set "_visited", "lift_bedcover", true;
+/set *_visited["lift_bedcover"], true;
 /converse "I lifted back the bedcover. The duvet underneath was crumpled.";
 *_arg_state <- "crumpled_duvet";
 <===+ @_fn_reach *_arg_state;
@@ -231,7 +255,7 @@ $`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 ====> @bedhub;
 
 @bed_uncover
-/set "_visited", "uncover", true;
+/set *_visited["uncover"], true;
 /converse/
     "Careful not to disturb anything beneath, I removed the cover entirely. The duvet below was rumpled."
     "Not the work of the maid, who was conscientious to a point. Clearly this had been thrown on in a hurry."
@@ -259,7 +283,7 @@ $`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 ====> @bedhub;
 
 @darkunder
-/set "_visited", "darkunder", true;
+/set *_visited["darkunder"], true;
 /converse "Lying down, I peered under the bed, but could make nothing out.";
 ====> @bedhub;
 
@@ -271,15 +295,15 @@ $`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 /converse "I peered under the bed. Something glinted back at me.";
 
 @reaching
-/set "_visited", "reaching", true;
-/set "_turn_at", "reaching", *_turn_counter;
+/set *_visited["reaching"], true;
+/set *_turn_at["reaching"], *_turn_counter;
 *_reach_choices <- [];
 /append *_reach_choices, {"Reach for it": "reach"};
 
 /has *Inventory, "cane"; -> *_has_cane;
 /if *_has_cane, /append *_reach_choices, {"Knock it with the cane": "knock"};;
 
-/get *_visited, "reaching_attempt"; -> *_attempts;
+/get *_visited["reaching_attempt"]; -> *_attempts;
 /any *_attempts; -> *_has_attempts;
 /if `!*_has_attempts`, *_attempts <- 0;;
 /if `*_attempts > 1`, /append *_reach_choices, {"Stand up": "standup"};;
@@ -297,7 +321,7 @@ $`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 
 @reach_attempt
 /increase *_attempts;
-/set "_visited", "reaching_attempt", *_attempts;
+/set *_visited["reaching_attempt"], *_attempts;
 /converse "I fished with one arm under the bed, but whatever it was, it had been kicked far enough back that I couldn't get my fingers on it.";
 ====> @reaching;
 
@@ -343,7 +367,7 @@ $`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 :: ============================================================================
 
 @desk
-/set "_visited", "desk", true;
+/set *_visited["desk"], true;
 /converse/
     "I turned my attention to the desk. A lamp sat in one corner, a neat, empty in-tray in the other. There was nothing else out."
     "Leaning against the desk was a wooden cane."
@@ -351,7 +375,7 @@ $`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 /append *bedroomLightState, "seen";
 
 @deskstate
-/set "_turn_at", "deskstate", *_turn_counter;
+/set *_turn_at["deskstate"], *_turn_counter;
 *_desk_choices <- [];
 
 :: Pick up cane
@@ -366,19 +390,19 @@ $`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 /append *_desk_choices, {"Look at the in-tray": "tray"};
 
 :: Drawers (up to 3 times)
-/get *_visited, "open_drawer"; -> *_drawer_count;
+/get *_visited["open_drawer"]; -> *_drawer_count;
 /any *_drawer_count; -> *_has_drawer;
 /if `!*_has_drawer`, *_drawer_count <- 0;;
 /if `*_drawer_count < 3`, /append *_desk_choices, {"Open a drawer": "drawer"};;
 
 :: Something else (after 2 interactions)
-/get *_visited, "deskstate"; -> *_desk_visits;
+/get *_visited["deskstate"]; -> *_desk_visits;
 /any *_desk_visits; -> *_has_desk_visits;
 /if `!*_has_desk_visits`, *_desk_visits <- 0;;
 /if `*_desk_visits >= 2`, /append *_desk_choices, {"Something else?": "back"};;
 
 /increase *_desk_visits;
-/set "_visited", "deskstate", *_desk_visits;
+/set *_visited["deskstate"], *_desk_visits;
 
 /chooseFrom *_desk_choices; -> *_desk_choice;
 /increase *_turn_counter;
@@ -404,11 +428,11 @@ $`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 ====> @deskstate;
 
 @open_drawer
-/get *_visited, "open_drawer"; -> *_drawer_count;
+/get *_visited["open_drawer"]; -> *_drawer_count;
 /any *_drawer_count; -> *_has_drawer;
 /if `!*_has_drawer`, *_drawer_count <- 0;;
 /increase *_drawer_count;
-/set "_visited", "open_drawer", *_drawer_count;
+/set *_visited["open_drawer"], *_drawer_count;
 
 /switch/ *_drawer_count
     1 "I tried a drawer at random. Locked."
@@ -456,11 +480,17 @@ $`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 :: ============================================================================
 
 @window
-/set "_visited", "window", true;
+/set *_visited["window"], true;
 /converse "I went over to the window and peered out. A dismal view of the little brook that ran down beside the house.";
 
 @window_opts
 *_win_choices <- [];
+
+/get *_visited["window_opts"]; -> *_win_visits;
+/any *_win_visits; -> *_has_win_visits;
+/if `!*_has_win_visits`, *_win_visits <- 0;;
+/increase *_win_visits;
+/set *_visited["window_opts"], *_win_visits;
 
 :: Check compare_prints
 *_arg_start <- "fingerprints_on_glass";
@@ -504,7 +534,7 @@ $`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 /do *_action;;
 
 @downy
-/set "_visited", "downy", true;
+/set *_visited["downy"], true;
 /if `*GlassState == "steamed"`, /sequence/
     /converse "Through the steamed glass I couldn't see the brook.";
     ====> @see_prints_on_glass;
@@ -514,12 +544,12 @@ $`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 
 @greasy
 /if `*GlassState == "steamed"`, ====> @downy;;
-/set "_visited", "greasy", true;
+/set *_visited["greasy"], true;
 /converse "The glass in the window was greasy. No one had cleaned it in a while, inside or out.";
 ====> @window_opts;
 
 @see_prints_on_glass
-/set "_visited", "see_prints", true;
+/set *_visited["see_prints"], true;
 *_arg_state <- "fingerprints_on_glass";
 <===+ @_fn_reach *_arg_state;
 /has *_visited, "see_prints_count"; -> *_print_count;
@@ -528,7 +558,7 @@ $`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 /if `*_print_count == 0`, /converse "But I could see a few fingerprints, as though someone had pressed their palm against it. They faded as I watched.";;
 /if `*_print_count > 0`, /converse "The fingerprints were quite clear and well-formed. They faded as I watched.";;
 /increase *_print_count;
-/set "_visited", "see_prints_count", *_print_count;
+/set *_visited["see_prints_count"], *_print_count;
 *GlassState <- "steam_gone";
 ====> @window_opts;
 
@@ -540,7 +570,7 @@ $`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 ====> @window_opts;
 
 @window_back
-/get *_visited, "window_opts"; -> *_win_visits;
+/get *_visited["window_opts"]; -> *_win_visits;
 /any *_win_visits; -> *_has_win;
 /if `!*_has_win`, *_win_visits <- 0;;
 /has *knowledgeState, "fingerprints_on_glass"; -> *_saw_prints;
@@ -590,10 +620,10 @@ $`*_turn_counter - *_turn_dobed`; -> *_since_dobed;
 
 :: Move light back to desk
 /has *bedroomLightState, "on_desk"; -> *_on_desk;
-/get *_turn_at, "floorit"; -> *_turn_floor;
+/get *_turn_at["floorit"]; -> *_turn_floor;
 /any *_turn_floor; -> *_has_floor_turn;
 /if `!*_has_floor_turn`, *_turn_floor <- 0;;
-$`*_turn_counter - *_turn_floor`; -> *_since_floor;
+/eval `*_turn_counter - *_turn_floor`; -> *_since_floor;
 /if `!*_on_desk && *_since_floor >= 2`, /append *_light_choices, {"Move the light back to the desk": "to_desk"};;
 
 :: Move light to floor (after darkunder)
@@ -641,7 +671,7 @@ $`*_turn_counter - *_turn_floor`; -> *_since_floor;
 /exit;
 
 @seen_light_floor
-/set "_turn_at", "floorit", *_turn_counter;
+/set *_turn_at["floorit"], *_turn_counter;
 *_arg_item_state <- *bedroomLightState;
 *_arg_new_supporter <- "on_floor";
 <===+ [inline] @_fn_move_to_supporter *_arg_item_state *_arg_new_supporter;
