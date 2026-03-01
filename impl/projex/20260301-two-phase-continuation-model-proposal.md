@@ -71,6 +71,7 @@ WaitRequest:
   | ChannelPush { channelName: string, seqNum: int, generation: int, timeoutMs: double? }
   | Signal      { messageName: string, timeoutMs: double? }
   | JoinContext { contextId: string }
+  | Host        { interactionType: string, timeoutMs: double? }
 
 # === WAIT OUTCOME ===
 # What actually happened. Produced by the runtime, consumed by onFulfilled.
@@ -199,6 +200,12 @@ Context:
       JoinContext { contextId }:
         state = WAITING_CONTEXT
         waitCondition = ContextWaitCondition { targetContextId: contextId }
+
+      Host { interactionType, timeoutMs }:
+        state = WAITING_HOST
+        waitCondition = HostWaitCondition {
+          interactionType, startTime: now(), timeout: timeoutMs
+        }
 ```
 
 ### Tick-Loop Scheduler
@@ -261,7 +268,26 @@ resolveWait(context: Context): WaitOutcome?
         return TimedOut
       return null
 
+    WAITING_HOST:
+      # Host-driven: the scheduler does NOT resolve this.
+      # The host calls context.resume(outcome) directly.
+      # Scheduler only handles timeout if configured.
+      if context.waitCondition.isTimedOut():
+        return TimedOut
+      return null
+
   return null
+```
+
+**Host resume path:** For `WAITING_HOST`, the runtime scheduler does not resolve the condition — the host application does, by calling `context.resume(outcome)` directly. This is the primary integration point for presentation verbs (`/converse`, `/choose`, `/prompt`, etc.) where the host UI collects input and feeds it back.
+
+```
+# Host-side (game engine, UI framework, etc.):
+onPlayerChoseOption(context, selectedValue):
+  context.resume(Completed { selectedValue })
+
+onPlayerDismissedDialog(context):
+  context.resume(Completed { Nothing })
 ```
 
 ### Async Task Scheduler
@@ -284,6 +310,7 @@ async fulfillAsync(request: WaitRequest): WaitOutcome
     ChannelPush { ... }        -> return await channel.awaitConsumedAsync(seq, timeout)
     Signal { messageName }     -> return await signals.waitAsync(messageName, timeout)
     JoinContext { contextId }  -> return Completed { await contexts.awaitTerminationAsync(contextId) }
+    Host { interactionType }   -> return await host.awaitInteractionAsync(interactionType, timeout)
 ```
 
 ---
@@ -454,6 +481,75 @@ PushDriver.execute(call, context):
   }
 ```
 
+### Choose — Host interaction with post-resume validation
+
+This demonstrates why `Host` is a first-class `WaitRequest`, not a workaround. The driver builds a choice list, yields to the host for UI presentation, then validates and maps the host's response on resume.
+
+```
+ChooseDriver.execute(call, context):
+  speaker = resolveAttribute(call, "by")
+  prompt = resolveNamedParam(call, "prompt")
+  timeout = resolveNamedParam(call, "timeout")?.toDouble()
+
+  # Build visible choices (evaluate visibility conditions)
+  choices = []
+  for i in range(0, call.unnamedParams.length, 3):
+    visible = resolve(call.params[i], context).isTruthy()
+    if not visible: continue
+    text = resolve(call.params[i + 1], context).toString()
+    value = resolve(call.params[i + 2], context)
+    choices.append({ text, value, index: i })
+
+  if choices.isEmpty():
+    return Complete { Nothing, [] }
+
+  # Notify host handler (display the UI)
+  runtime.hostHandler.onChoose(context, ChooseRequest { speaker, prompt, timeout, choices })
+
+  # Yield — host calls context.resume() when player picks
+  return Suspend {
+    continuation: Continuation {
+      request: Host { interactionType: "choose", timeoutMs: timeout ? timeout * 1000 : null },
+      onFulfilled: (outcome) ->
+        match outcome:
+          Completed { value }:
+            # Post-resume: validate the host's response
+            # The host returns the selected value directly.
+            # Driver can transform, validate, or log here.
+            Complete { value, [] }
+          TimedOut:
+            Complete { Nothing, [Diagnostic(INFO, "timeout", "Choose timed out")] }
+          Cancelled { reason }:
+            Complete { Nothing, [reason] }
+    }
+  }
+```
+
+### Converse — Host interaction with optional wait
+
+```
+ConverseDriver.execute(call, context):
+  speaker = resolveAttribute(call, "by")
+  shouldWait = resolveAttribute(call, "wait") ?? context.get("interactive") ?? true
+  contents = resolveAllUnnamed(call, context)
+
+  if contents.isEmpty():
+    return Complete { Nothing, [] }
+
+  runtime.hostHandler.onConverse(context, ConverseRequest { speaker, contents, ... })
+
+  if not shouldWait:
+    return Complete { Nothing, [] }    # Fire-and-forget, no yield
+
+  # Yield for host acknowledgment (player dismisses dialog)
+  return Suspend {
+    continuation: Continuation {
+      request: Host { interactionType: "converse" },
+      onFulfilled: (_) -> Complete { Nothing, [] }
+    }
+  }
+```
+
 ---
 
 ## IP Lifecycle Summary
@@ -498,6 +594,7 @@ The instruction pointer question resolves cleanly under this model:
 | `Runtime.tick()` | Resolves waits AND applies verb-specific post-resume logic | Resolves waits only, calls `context.resume(outcome)` |
 | `Context` (new) | — | Gains `pendingContinuation`, `resume()`, `applyResult()` |
 | IP advancement | Missing for blocking path | Handled uniformly in `applyResult()` on `Complete` |
+| `HostContinuation` | Opaque tag, no post-resume driver logic | `Host` WaitRequest + `onFulfilled` for validation/transform |
 | Extension verbs | Cannot define new blocking conditions | Can block via any `WaitRequest`, own their resume logic |
 
 ---
@@ -522,7 +619,9 @@ The `ContextState` enum (`SLEEPING`, `WAITING_CHANNEL`, etc.) is retained for th
 
 ### Host-Defined Wait Conditions
 
-For host integration (e.g., "wait for UI input"), the existing `/wait` + `/signal` pattern covers most cases — the host signals when the external event occurs. If a tighter integration is needed, a `HostAction { tag: string, payload: Value }` variant could be added to `WaitRequest` with a corresponding host-registered resolver. This is deferred — not needed for the core model.
+`Host { interactionType, timeoutMs }` is a core `WaitRequest` variant. The `interactionType` string is an open tag — the runtime does not interpret it. The scheduler only checks timeout; fulfillment is the host's responsibility via `context.resume(outcome)`. This covers all presentation verbs (`/converse`, `/choose`, `/prompt`, `/choosefrom`) and any future host-specific interactions without requiring new `WaitRequest` variants or `ContextState` entries.
+
+The host can also use the `/wait` + `/signal` pattern for fire-and-forget events. `Host` is for synchronous request/response interactions where the driver needs the host's answer before it can complete.
 
 ---
 
