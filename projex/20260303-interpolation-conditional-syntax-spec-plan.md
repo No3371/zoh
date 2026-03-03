@@ -1,6 +1,6 @@
 # Interpolation Conditional Syntax Update - Spec Plan
 
-> **Status:** Ready
+> **Status:** In Progress
 > **Created:** 2026-03-03
 > **Author:** Antigravity
 > **Source:** [20260303-interpolation-conditional-syntax-outdated-memo.md](20260303-interpolation-conditional-syntax-outdated-memo.md)
