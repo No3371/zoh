@@ -243,13 +243,13 @@ For exmaple, `"Hello, ${*name}!"` should be interpolated to "Hello, John!" if `*
 Interpolation should also support:
 - Formatting: C# composite format parity `${var[,width][:formatString]}`.
     - Examples: `/itpl "|${"Left",-7}|${"Right",7}|"` is `"|Left   |  Right|`. `/itpl "My balance is ${*balance,8:N1}."` is `"My balance is     100.0"`
-    - This can not be used with the following feature syntaxes.
+    - This formatting suffix can also be applied to the feature syntaxes below (e.g., `$?{*win? 'W' : 'L', -4}`).
 - Unrolling: `${*var..."delim"}` to expand `*[list]` and `*{map}` into `{element}{delim}{element}...` where `element`s are the list elements or map k:v pairs.
     - Example: `/itpl "I have ${*inv...", "}."` is `"I have potion, sword, pie."`
 - Parity of `/count` for `$#{*var}`.
     - Example: `/itpl "I have $#{*inv_size} items."` is `"I have 3 items."`
-- Parity of `/if` for `$?{*cond? *true_case | *false_case}`.
-    - Example: `/itpl "You $?{*win? "win"|"lose"}."` is `"You win."`
+- Parity of `/if` for `$?{*cond? *true_case : *false_case}`.
+    - Example: `/itpl "You $?{*win? "win":"lose"}."` is `"You win."`
 - Parity of `/first` for `$?{*var1|*var2...|*varN}`.
     - Example: `/itpl "I have $?{?|"something"}".` is `"I have something."`
 - Picking one option for `${*var1|*var2...|*varN}[#]` with the options as a list parameter and `#` as the index. For example: `${1|2|3}[*i]`. Optionally, the `#` can be prefixed with `!` for a modulo operation to wrap around the cases.

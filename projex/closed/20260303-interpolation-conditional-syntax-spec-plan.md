@@ -1,9 +1,9 @@
 # Interpolation Conditional Syntax Update - Spec Plan
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Created:** 2026-03-03
+> **Walkthrough:** [20260303-interpolation-conditional-syntax-spec-walkthrough.md](20260303-interpolation-conditional-syntax-spec-walkthrough.md)
 > **Author:** Antigravity
-> **Source:** [20260303-interpolation-conditional-syntax-outdated-memo.md](20260303-interpolation-conditional-syntax-outdated-memo.md)
 > **Related Projex:** [csharp/projex/20260303-interpolation-conditional-syntax-csharp-plan.md](../../csharp/projex/20260303-interpolation-conditional-syntax-csharp-plan.md)
 
 ---
