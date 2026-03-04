@@ -28,8 +28,7 @@ ConverseDriver.execute(call, context):
     portrait = getAttribute(call, "Portrait")?.value
     append = hasAttribute(call, "Append")
     style = getAttribute(call, "Style")?.value ?? "dialog"
-    
-    # Check wait behavior: attribute > flag > default
+
     waitAttr = getAttribute(call, "Wait")
     if waitAttr != null:
         shouldWait = resolve(waitAttr.value, context).toBool()
@@ -37,48 +36,44 @@ ConverseDriver.execute(call, context):
         shouldWait = context.getFlag("interactive") ?? true
 
     timeout = getNamedParam(call, "timeout")
-    if timeout != null:
-        timeoutVal = resolve(timeout, context).toDouble()
-        if timeoutVal <= 0:
-            return info("timeout", "Immediate timeout")
-        timeoutVal = timeoutVal * 1000 # Convert to ms if needed by runtime or keep as seconds
-    
-    # Process each content parameter as separate presentation
+    timeoutMs = timeout != null ? resolve(timeout, context).toDouble() * 1000 : null
+    if timeout != null and timeoutMs <= 0:
+        return info("timeout", "Immediate timeout")
+
+    # Pre-resolve all content items; fail fast on type errors before any suspension
+    contents = []
     for param in call.unnamedParams:
         content = resolve(param, context)
-        
-        # Validate type: only string or expression allowed per spec
         if content is not StringValue and content is not ExpressionValue:
-            return fatal("type_mismatch", 
+            return fatal("type_mismatch",
                 "Content must be string or expression, got: " + content.getType())
-        
-        # Expression: evaluate
         if content is ExpressionValue:
             content = evaluate(content, context)
-        
-        # String: always interpolate (per spec: performs /interpolate once)
         if content is StringValue:
             content = interpolate(content.value, context)
-        
-        # Send to presentation layer
-        presentation = PresentationRequest {
-            type: "converse",
-            content: content.toString(),
-            speaker: speaker?.toString(),
-            portrait: portrait?.toString(),
-            append: append,
-            style: style
+        contents.add(content)
+
+    if not shouldWait or contents.isEmpty():
+        return Complete { Nothing, [] }
+
+    # Per spec: each content blocks independently — chain suspensions via onFulfilled
+    return converseNext(contents, 0, timeoutMs)
+
+# Inner helper: drives the per-content suspension loop.
+# The host driver has access to `contents[index]` via the resolved list
+# captured in this closure — it reads the current item before resuming.
+converseNext(contents, index, timeoutMs):
+    if index >= contents.length:
+        return Complete { Nothing, [] }
+    return Suspend {
+        continuation: Continuation {
+            request: Host { timeoutMs },
+            onFulfilled: (outcome) -> match outcome:
+                Completed { _ }:          converseNext(contents, index + 1, timeoutMs)
+                TimedOut:                 Complete { Nothing, [Diagnostic(INFO, "timeout", "Converse timed out")] }
+                Cancelled { code, msg }:  Complete { Nothing, [Diagnostic(ERROR, code, msg)] }
         }
-        
-        context.runtime.present(presentation)
-        
-        # Wait for user input if interactive
-        if shouldWait:
-            result = context.runtime.waitForContinue(context.handle, timeoutVal) 
-            if result.isTimeout:
-                return info("timeout", "Operation timed out")
-    
-    return ok()
+    }
 ```
 
 ---
@@ -104,63 +99,41 @@ ChooseDriver.execute(call, context):
     portrait = getAttribute(call, "Portrait")?.value
     style = getAttribute(call, "Style")?.value ?? "normal"
     prompt = getNamedParam(call, "prompt")
-    
-    # Process prompt
     if prompt != null:
         prompt = resolveAndInterpolate(prompt, context)
-    
+
     timeout = getNamedParam(call, "timeout")
-    if timeout != null:
-        timeoutVal = resolve(timeout, context).toDouble()
-        if timeoutVal <= 0:
-            return info("timeout", "Immediate timeout")
-    
-    # Parse choices (triplets: visible, text, value)
+    timeoutMs = timeout != null ? resolve(timeout, context).toDouble() * 1000 : null
+    if timeout != null and timeoutMs <= 0:
+        return info("timeout", "Immediate timeout")
+
     choices = []
     params = call.unnamedParams
     i = 0
     while i + 2 < params.length:
-        visible = params[i]
-        text = params[i + 1]
-        value = params[i + 2]
-        
-        # Evaluate visibility
-        visibleResolved = resolve(visible, context)
-        if visibleResolved is ExpressionValue:
-            visibleResolved = evaluate(visibleResolved, context)
-        if visibleResolved is VerbValue:
-            visibleResolved = executeVerb(visibleResolved, context)
-        
-        isVisible = visibleResolved.toBool()
-        
-        if isVisible:
-            textResolved = resolveAndInterpolate(text, context)
-            valueResolved = resolve(value, context)
-            
-            choices.add({
-                text: textResolved.toString(),
-                value: valueResolved
-            })
-        
+        visible = resolve(params[i], context)
+        if visible is ExpressionValue: visible = evaluate(visible, context)
+        if visible is VerbValue: visible = executeVerb(visible, context)
+
+        if visible.toBool():
+            text = resolveAndInterpolate(params[i + 1], context)
+            value = resolve(params[i + 2], context)
+            choices.add({ text: text.toString(), value })
         i += 3
-    
-    # Present choices
-    presentation = PresentationRequest {
-        type: "choose",
-        prompt: prompt?.toString(),
-        choices: choices,
-        speaker: speaker?.toString(),
-        portrait: portrait?.toString(),
-        style: style
+
+    if choices.isEmpty():
+        return Complete { Nothing, [Diagnostic(WARNING, "no_choices", "No visible choices")] }
+
+    # choices resolved — host driver renders UI and resumes with selected value
+    return Suspend {
+        continuation: Continuation {
+            request: Host { timeoutMs },
+            onFulfilled: (outcome) -> match outcome:
+                Completed { value }:       Complete { value, [] }
+                TimedOut:                  Complete { Nothing, [Diagnostic(INFO, "timeout", "Choose timed out")] }
+                Cancelled { code, msg }:   Complete { Nothing, [Diagnostic(ERROR, code, msg)] }
+        }
     }
-    
-    selectedIndex = -1
-    selectedIndex = context.runtime.presentChoice(presentation, context.handle, timeoutVal)
-    
-    if selectedIndex == -1: # Timeout indicator
-        return info("timeout", "Operation timed out")
-        
-    return ok(choices[selectedIndex].value)
 
 resolveAndInterpolate(param, context): Value
     value = resolve(param, context)
@@ -195,39 +168,32 @@ resolveAndInterpolate(param, context): Value
 ChooseFromDriver.execute(call, context):
     choicesList = resolve(call.params[0], context)
     prompt = getNamedParam(call, "prompt")
+    if prompt != null:
+        prompt = resolveAndInterpolate(prompt, context)
     timeout = getNamedParam(call, "timeout")
-    
-    if timeout != null:
-        timeoutVal = resolve(timeout, context).toDouble()
-        if timeoutVal <= 0:
-            return info("timeout", "Immediate timeout")
-    
-    # choicesList is List of single-entry Maps: [{"text": value}, ...]
-    choices = []
-    
+    timeoutMs = timeout != null ? resolve(timeout, context).toDouble() * 1000 : null
+    if timeout != null and timeoutMs <= 0:
+        return info("timeout", "Immediate timeout")
+
     if choicesList is not ListValue:
-        return fatal("invalid_type", "Examples expected list of maps, got: " + choicesList.getType())
-        
+        return fatal("invalid_type", "Expected list of maps, got: " + choicesList.getType())
+
+    choices = []
     for item in choicesList.elements:
         if item is not MapValue or item.entries.size != 1:
             return fatal("invalid_type", "Each choice must be a single-entry map")
-        
         for (text, value) in item.entries:
             choices.add({ text, value })
-    
-    presentation = PresentationRequest {
-        type: "choose",
-        prompt: prompt?.toString(),
-        choices: choices
+
+    return Suspend {
+        continuation: Continuation {
+            request: Host { timeoutMs },
+            onFulfilled: (outcome) -> match outcome:
+                Completed { value }:      Complete { value, [] }
+                TimedOut:                 Complete { Nothing, [Diagnostic(INFO, "timeout", "ChooseFrom timed out")] }
+                Cancelled { code, msg }:  Complete { Nothing, [Diagnostic(ERROR, code, msg)] }
+        }
     }
-    
-    selectedIndex = -1
-    selectedIndex = context.runtime.presentChoice(presentation, context.handle, timeoutVal)
-
-    if selectedIndex == -1: # Timeout indicator
-        return info("timeout", "Operation timed out")
-
-    return ok(choices[selectedIndex].value)
 ```
 
 ---
@@ -248,280 +214,47 @@ PromptDriver.execute(call, context):
     promptText = null
     if call.params.length > 0:
         promptText = resolveAndInterpolate(call.params[0], context)
-    
+
     style = getAttribute(call, "Style")?.value ?? "normal"
     timeout = getNamedParam(call, "timeout")
+    timeoutMs = timeout != null ? resolve(timeout, context).toDouble() * 1000 : null
+    if timeout != null and timeoutMs <= 0:
+        return info("timeout", "Immediate timeout")
 
-    if timeout != null:
-        timeoutVal = resolve(timeout, context).toDouble()
-        if timeoutVal <= 0:
-             return info("timeout", "Immediate timeout")
-    
-    presentation = PresentationRequest {
-        type: "prompt",
-        prompt: promptText?.toString(),
-        style: style.toString()
+    return Suspend {
+        continuation: Continuation {
+            request: Host { timeoutMs },
+            onFulfilled: (outcome) -> match outcome:
+                Completed { value }:      Complete { StringValue(value.toString()), [] }
+                TimedOut:                 Complete { Nothing, [Diagnostic(INFO, "timeout", "Prompt timed out")] }
+                Cancelled { code, msg }:  Complete { Nothing, [Diagnostic(ERROR, code, msg)] }
+        }
     }
-    
-    userInput = context.runtime.presentPrompt(presentation, context.handle, timeoutVal)
-    
-    if userInput == null: # Timeout indicator
-         return info("timeout", "Operation timed out")
-
-    return ok(StringValue(userInput))
 ```
 
 ---
 
 ## Media Verbs
 
-### Std.Show
+Media verbs (`/show`, `/hide`, `/play`, `/playOne`, `/stop`, `/pause`, `/resume`,
+`/setVolume`, `/focus`, `/unfocus`) are **implementation-defined**. The spec defines
+their signatures and attributes; the host registers its own verb drivers.
 
-**Purpose**: Display visual media.
+Media verbs are typically non-blocking — they fire a rendering command and return
+`Complete { Nothing, [] }` (or `Complete { StringValue(id), [] }` for verbs that
+return a handle). Blocking variants (e.g., waiting for an animation to finish) can
+be implemented with `Suspend { Host { timeoutMs } }` if the host chooses.
 
-#### Signature
-```
-/show [id:string] [rw:double] [rh:double] [w:double] [h:double]
-      [anchor:string] [x:double] [y:double] [z:double]
-      [fade:double] [opacity:double] [easing:string]
-      resource;
-```
-
-#### Implementation
-
-```
-ShowDriver.execute(call, context):
-    resource = resolve(call.params[0], context).toString()
-    
-    # Build media request from attributes
-    request = MediaRequest {
-        type: "show",
-        resource: resource,
-        id: getAttribute(call, "id")?.value.toString() ?? resource,
-        relativeWidth: getAttribute(call, "rw")?.value.toDouble(),
-        relativeHeight: getAttribute(call, "rh")?.value.toDouble(),
-        width: getAttribute(call, "w")?.value.toDouble(),
-        height: getAttribute(call, "h")?.value.toDouble(),
-        anchor: getAttribute(call, "anchor")?.value.toString() ?? "center",
-        x: getAttribute(call, "x")?.value.toDouble() ?? 0.5,
-        y: getAttribute(call, "y")?.value.toDouble() ?? 0.5,
-        z: getAttribute(call, "z")?.value.toDouble() ?? 0,
-        fadeDuration: getAttribute(call, "fade")?.value.toDouble() ?? 0,
-        opacity: getAttribute(call, "opacity")?.value.toDouble() ?? 1.0,
-        easing: getAttribute(call, "easing")?.value.toString() ?? "linear"
-    }
-    
-    context.runtime.showMedia(request)
-    return ok(StringValue(request.id))
-```
-
----
-
-### Std.Hide
-
-**Purpose**: Hide visual media.
-
-#### Signature
-```
-/hide [fade:double] [easing:string] id;
-```
-
-#### Implementation
-
-```
-HideDriver.execute(call, context):
-    id = resolve(call.params[0], context).toString()
-    fadeDuration = getAttribute(call, "fade")?.value.toDouble() ?? 0
-    easing = getAttribute(call, "easing")?.value.toString() ?? "linear"
-    
-    request = MediaRequest {
-        type: "hide",
-        id: id,
-        fadeDuration: fadeDuration,
-        easing: easing
-    }
-    
-    context.runtime.hideMedia(request)
-    return ok()
-```
-
----
-
-### Std.Play
-
-**Purpose**: Play audio/video.
-
-#### Signature
-```
-/play [id:string] [volume:double] [loops:int] [easing:string] resource;
-```
-
-#### Implementation
-
-```
-PlayDriver.execute(call, context):
-    resource = resolve(call.params[0], context).toString()
-    
-    request = MediaRequest {
-        type: "play",
-        resource: resource,
-        id: getAttribute(call, "id")?.value.toString() ?? resource,
-        volume: getAttribute(call, "volume")?.value.toDouble() ?? 1.0,
-        loops: getAttribute(call, "loops")?.value.toInt() ?? 1,
-        easing: getAttribute(call, "easing")?.value.toString() ?? "linear"
-    }
-    
-    context.runtime.playMedia(request)
-    return ok(StringValue(request.id))
-```
-
----
-
-### Std.PlayOne
-
-**Purpose**: Play audio without tracking (fire-and-forget).
-
-#### Implementation
-
-```
-PlayOneDriver.execute(call, context):
-    resource = resolve(call.params[0], context).toString()
-    
-    request = MediaRequest {
-        type: "playOne",
-        resource: resource,
-        volume: getAttribute(call, "volume")?.value.toDouble() ?? 1.0,
-        loops: getAttribute(call, "loops")?.value.toInt() ?? 1
-    }
-    
-    context.runtime.playOneShot(request)
-    return ok()
-```
-
----
-
-### Std.Stop
-
-**Purpose**: Stop playing media.
-
-#### Signature
-```
-/stop [fade:double] [easing:string] id?;
-```
-
-#### Implementation
-
-```
-StopDriver.execute(call, context):
-    fadeDuration = getAttribute(call, "fade")?.value.toDouble() ?? 0
-    easing = getAttribute(call, "easing")?.value.toString() ?? "linear"
-    
-    if call.params.length == 0:
-        # Stop all
-        context.runtime.stopAllMedia(fadeDuration, easing)
-    else:
-        id = resolve(call.params[0], context).toString()
-        context.runtime.stopMedia(id, fadeDuration, easing)
-    
-    return ok()
-```
-
----
-
-### Std.Pause / Std.Resume
-
-```
-PauseDriver.execute(call, context):
-    id = resolve(call.params[0], context).toString()
-    context.runtime.pauseMedia(id)
-    return ok()
-
-ResumeDriver.execute(call, context):
-    id = resolve(call.params[0], context).toString()
-    context.runtime.resumeMedia(id)
-    return ok()
-```
-
----
-
-### Std.SetVolume
-
-**Purpose**: Adjust volume of playing media.
-
-#### Signature
-```
-/setVolume [fade:double] [easing:string] id, volume;
-```
-
-#### Implementation
-
-```
-SetVolumeDriver.execute(call, context):
-    id = resolve(call.params[0], context).toString()
-    volume = resolve(call.params[1], context).toDouble()
-    fadeDuration = getAttribute(call, "fade")?.value.toDouble() ?? 0
-    easing = getAttribute(call, "easing")?.value.toString() ?? "linear"
-    
-    context.runtime.setMediaVolume(id, volume, fadeDuration, easing)
-    return ok()
-```
-
----
-
-### Std.Focus / Std.Unfocus
-
-**Purpose**: Direct user attention.
-
-```
-FocusDriver.execute(call, context):
-    target = resolve(call.params[0], context).toString()
-    context.runtime.focus(target)
-    return ok()
-
-UnfocusDriver.execute(call, context):
-    context.runtime.unfocus()
-    return ok()
-```
-
----
-
-## Runtime Presentation Interface
-
-Standard verbs delegate to runtime presentation layer:
-
-```
-Runtime:
-  # Presentation — called by verb drivers (which have an internal Context).
-  # The ContextHandle identifies the blocked context to the host without
-  # exposing Context internals. The host delivers the response via
-  # runtime.resume(handle, value) when the interaction completes.
-  present(request: PresentationRequest): void
-  waitForContinue(handle: ContextHandle): void
-  presentChoice(request: PresentationRequest, handle: ContextHandle, timeout: double?): int
-  presentPrompt(request: PresentationRequest, handle: ContextHandle, timeout: double?): string?
-  
-  # Media
-  showMedia(request: MediaRequest): void
-  hideMedia(request: MediaRequest): void
-  playMedia(request: MediaRequest): void
-  playOneShot(request: MediaRequest): void
-  stopMedia(id: string, fade: double, easing: string): void
-  stopAllMedia(fade: double, easing: string): void
-  pauseMedia(id: string): void
-  resumeMedia(id: string): void
-  setMediaVolume(id: string, volume: double, fade: double, easing: string): void
-  focus(target: string): void
-  unfocus(): void
-```
-
-This interface allows different runtime implementations:
-- **Text Console**: Print text, read input
-- **Visual Novel**: GUI dialogs, sprite system, audio
-- **3D Engine**: 3D actors, camera control, spatial audio
+No default driver is provided. If no driver is registered, the verb is an unknown
+verb and becomes a no-op (a warning is logged per the execution loop).
 
 ---
 
 ## Testing Checklist
+
+> These are embedder-level behavioral tests — verifying that a host's driver
+> implementation meets the verb semantics defined in `spec/std_verbs.md`.
+> They are not unit tests of the spec pseudocode.
 
 ### Converse
 - [ ] Single content
