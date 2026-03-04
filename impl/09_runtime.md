@@ -401,6 +401,13 @@ Context:
   storyDefers: Stack<CompiledVerbCall>
   contextDefers: Stack<CompiledVerbCall>
   
+  # Per-statement driver state
+  statementState: Map<string, object>?  # Driver-private scratch space.
+                                        # Persists across suspend/resume for the SAME statement.
+                                        # Cleared by applyResult on Complete, by terminate,
+                                        # and on story exit (jump to different story).
+                                        # The runtime never reads or interprets this — only clears it.
+
   # Waiting state
   pendingContinuation: Continuation?   # Stored while blocked; cleared on resume
   waitCondition: WaitCondition?        # For scheduler condition checks
@@ -468,6 +475,7 @@ Context.applyResult(result: DriverResult, entryIp: int, entryStory: CompiledStor
         Complete { value, diagnostics }:
             lastReturnValue = value
             lastDiagnostics = diagnostics
+            statementState = null
             if hasFatal(diagnostics):
                 terminate()
             elif instructionPointer == entryIp and currentStory == entryStory:
@@ -504,6 +512,8 @@ Context.terminate():
     # Execute defers
     executeStoryDefers()
     executeContextDefers()
+
+    statementState = null
 
     # Channel cleanup
     cleanupChannels()
