@@ -2,6 +2,8 @@
 
 > **Status:** Ready
 > **Created:** 2026-03-04
+> **Reviewed:** 2026-03-04 — 20260304-std-verbs-driver-alignment-plan-review.md
+> **Review Outcome:** Valid — Ready to Execute
 > **Author:** agent
 > **Source:** Direct request — post-consistency audit conversation
 > **Related Projex:** 20260304-runtime-api-surface-spec-plan.md, 20260304-runtime-api-surface-spec-plan-log.md
@@ -82,7 +84,7 @@ Rewrite the three affected areas in `10_std_verbs.md`:
 
 ### Step 1: Rewrite `/converse` Driver Body
 
-**Objective:** Return `Suspend { Host { timeoutMs } }` when `shouldWait` is true; `Complete { Nothing, [] }` otherwise. Remove all `context.runtime.*` calls.
+**Objective:** Per spec (`spec/std_verbs.md` L9): each content item must block independently, as if it were a separate `/converse` call. The driver must issue one `Suspend { Host }` per content item, chained via `onFulfilled`. Remove all `context.runtime.*` calls.
 
 **Files:** `impl/10_std_verbs.md`
 
@@ -109,6 +111,8 @@ ConverseDriver.execute(call, context):
     if timeout != null and timeoutMs <= 0:
         return info("timeout", "Immediate timeout")
 
+    # Pre-resolve all content items; fail fast on type errors before any suspension
+    contents = []
     for param in call.unnamedParams:
         content = resolve(param, context)
         if content is not StringValue and content is not ExpressionValue:
@@ -118,25 +122,34 @@ ConverseDriver.execute(call, context):
             content = evaluate(content, context)
         if content is StringValue:
             content = interpolate(content.value, context)
-        # content is now resolved — host driver handles rendering
+        contents.add(content)
 
-    if not shouldWait:
+    if not shouldWait or contents.isEmpty():
         return Complete { Nothing, [] }
 
+    # Per spec: each content blocks independently — chain suspensions via onFulfilled
+    return converseNext(contents, 0, timeoutMs)
+
+# Inner helper: drives the per-content suspension loop.
+# The host driver has access to `contents[index]` via the resolved list
+# captured in this closure — it reads the current item before resuming.
+converseNext(contents, index, timeoutMs):
+    if index >= contents.length:
+        return Complete { Nothing, [] }
     return Suspend {
         continuation: Continuation {
             request: Host { timeoutMs },
             onFulfilled: (outcome) -> match outcome:
-                Completed { _ }:          Complete { Nothing, [] }
+                Completed { _ }:          converseNext(contents, index + 1, timeoutMs)
                 TimedOut:                 Complete { Nothing, [Diagnostic(INFO, "timeout", "Converse timed out")] }
                 Cancelled { code, msg }:  Complete { Nothing, [Diagnostic(ERROR, code, msg)] }
         }
     }
 ```
 
-**Rationale:** The driver resolves all its parameters directly. Everything the host needs (speaker, content, etc.) is available at driver registration time — the host's driver implementation can read verb call attributes directly or override the full driver. The `Suspend { Host }` pattern is the established mechanism for blocking on host interaction.
+**Rationale:** The spec requires per-content blocking. Chaining suspensions through `onFulfilled` is the correct pattern — each fulfillment drives the next item. The host driver override has access to both the `call` verb attributes (speaker, style, etc.) and the resolved `contents` list via the closure. When `shouldWait` is false, content delivery is fire-and-forget and implementation-defined: the host's driver override handles display without suspension.
 
-**Verification:** Section contains no `context.runtime.*` calls; driver returns `Suspend { Host }` for the blocking path and `Complete { Nothing, [] }` for non-blocking.
+**Verification:** Section contains no `context.runtime.*` calls; driver produces one `Suspend { Host }` per content item for the blocking path; non-blocking path returns `Complete { Nothing, [] }` immediately.
 
 ---
 
@@ -200,7 +213,7 @@ ChooseDriver.execute(call, context):
 
 ### Step 3: Rewrite `/chooseFrom` Driver Body
 
-**Objective:** Same as `/choose` but takes a list parameter.
+**Objective:** Same as `/choose` but takes a list parameter. Prompt must be resolved with `resolveAndInterpolate` before suspension.
 
 **Files:** `impl/10_std_verbs.md`
 
@@ -211,6 +224,8 @@ ChooseDriver.execute(call, context):
 ChooseFromDriver.execute(call, context):
     choicesList = resolve(call.params[0], context)
     prompt = getNamedParam(call, "prompt")
+    if prompt != null:
+        prompt = resolveAndInterpolate(prompt, context)
     timeout = getNamedParam(call, "timeout")
     timeoutMs = timeout != null ? resolve(timeout, context).toDouble() * 1000 : null
     if timeout != null and timeoutMs <= 0:
@@ -237,7 +252,7 @@ ChooseFromDriver.execute(call, context):
     }
 ```
 
-**Verification:** No `context.runtime.*` calls; same `Suspend { Host }` pattern.
+**Verification:** No `context.runtime.*` calls; `prompt` resolved with `resolveAndInterpolate` matching convention in `/choose`; same `Suspend { Host }` pattern.
 
 ---
 
@@ -334,11 +349,31 @@ Runtime:
 
 ---
 
-### Step 7: Remove `resolveAndInterpolate` Duplication Concerns
+### Step 7: Verify `resolveAndInterpolate` Helper
 
 `resolveAndInterpolate` is a helper used by `/choose`, `/chooseFrom`, `/converse`. It is defined inline after the `ChooseDriver` body (currently L165–178). Verify it remains in place and is still referenced correctly by the rewritten drivers.
 
-**Verification:** `resolveAndInterpolate` definition still present; used by `/converse`, `/choose`, `/prompt` where needed.
+**Verification:** `resolveAndInterpolate` definition still present; used by `/converse`, `/choose`, `/chooseFrom` (prompt param), and `/prompt` where needed.
+
+---
+
+### Step 8: Review Testing Checklist
+
+**Objective:** The Testing Checklist (L524–568) documents verb behavior tests. After Steps 5 and 6, media verb driver bodies are removed. The checklist entries for Show/Hide, Play/Stop, and Volume Control test verb semantics (not runtime internals) and remain valid as embedder-level testing guidance.
+
+**Files:** `impl/10_std_verbs.md`
+
+**Changes:** No deletions. Add a prose header before the Testing Checklist clarifying its purpose:
+
+```markdown
+## Testing Checklist
+
+> These are embedder-level behavioral tests — verifying that a host's driver
+> implementation meets the verb semantics defined in `spec/std_verbs.md`.
+> They are not unit tests of the spec pseudocode.
+```
+
+**Verification:** Header present; no checklist items removed.
 
 ---
 
