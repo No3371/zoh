@@ -1,12 +1,13 @@
 # Std Verbs: Remove Presentation Subsystem, Align with Verb Driver Model
 
-> **Status:** Ready
+> **Status:** Complete
 > **Created:** 2026-03-04
 > **Reviewed:** 2026-03-04 — 20260304-std-verbs-driver-alignment-plan-review.md
 > **Review Outcome:** Valid — Ready to Execute
 > **Author:** agent
 > **Source:** Direct request — post-consistency audit conversation
 > **Related Projex:** 20260304-runtime-api-surface-spec-plan.md, 20260304-runtime-api-surface-spec-plan-log.md
+> **Partial Execution:** The plan was mostly executed previously except for `ChooseDriver` which was addressed via patch [20260305-std-verbs-driver-alignment-choose-patch.md](closed/20260305-std-verbs-driver-alignment-choose-patch.md).
 
 ---
 
@@ -153,7 +154,7 @@ converseNext(contents, index, timeoutMs):
 
 ---
 
-### Step 2: Rewrite `/choose` Driver Body
+### Step 2: Rewrite `/choose` Driver Body [PATCHED]
 
 **Objective:** Build and resolve choices, return `Suspend { Host { timeoutMs } }`. The host delivers the selected value via `runtime.resume(handle, value)`, arriving as `Completed { value }` in `onFulfilled`.
 
