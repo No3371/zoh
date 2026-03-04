@@ -53,3 +53,4 @@ If a deferred verb itself produces a fatal, are remaining defers skipped? Not ad
 ## Related Projex
 
 - 20260304-context-runtime-coupling-eval.md
+- 20260305-story-transition-lifecycle-plan.md (Issue #1 → plan)
