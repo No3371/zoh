@@ -74,7 +74,7 @@ ConverseDriver.execute(call, context):
         
         # Wait for user input if interactive
         if shouldWait:
-            result = context.runtime.waitForContinue(context, timeoutVal) 
+            result = context.runtime.waitForContinue(context.handle, timeoutVal) 
             if result.isTimeout:
                 return info("timeout", "Operation timed out")
     
@@ -155,7 +155,7 @@ ChooseDriver.execute(call, context):
     }
     
     selectedIndex = -1
-    selectedIndex = context.runtime.presentChoice(presentation, context, timeoutVal)
+    selectedIndex = context.runtime.presentChoice(presentation, context.handle, timeoutVal)
     
     if selectedIndex == -1: # Timeout indicator
         return info("timeout", "Operation timed out")
@@ -222,7 +222,7 @@ ChooseFromDriver.execute(call, context):
     }
     
     selectedIndex = -1
-    selectedIndex = context.runtime.presentChoice(presentation, context, timeoutVal)
+    selectedIndex = context.runtime.presentChoice(presentation, context.handle, timeoutVal)
 
     if selectedIndex == -1: # Timeout indicator
         return info("timeout", "Operation timed out")
@@ -263,7 +263,7 @@ PromptDriver.execute(call, context):
         style: style.toString()
     }
     
-    userInput = context.runtime.presentPrompt(presentation, context, timeoutVal)
+    userInput = context.runtime.presentPrompt(presentation, context.handle, timeoutVal)
     
     if userInput == null: # Timeout indicator
          return info("timeout", "Operation timed out")
@@ -491,11 +491,14 @@ Standard verbs delegate to runtime presentation layer:
 
 ```
 Runtime:
-  # Presentation
+  # Presentation — called by verb drivers (which have an internal Context).
+  # The ContextHandle identifies the blocked context to the host without
+  # exposing Context internals. The host delivers the response via
+  # runtime.resume(handle, value) when the interaction completes.
   present(request: PresentationRequest): void
-  waitForContinue(context: Context): void
-  presentChoice(request: PresentationRequest, context: Context, timeout: double?): int
-  presentPrompt(request: PresentationRequest, context: Context, timeout: double?): string?
+  waitForContinue(handle: ContextHandle): void
+  presentChoice(request: PresentationRequest, handle: ContextHandle, timeout: double?): int
+  presentPrompt(request: PresentationRequest, handle: ContextHandle, timeout: double?): string?
   
   # Media
   showMedia(request: MediaRequest): void

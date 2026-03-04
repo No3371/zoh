@@ -1,7 +1,9 @@
 # Runtime API Surface Revision — Spec Update
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Created:** 2026-03-04
+> **Completed:** 2026-03-04
+> **Walkthrough:** 20260304-runtime-api-surface-spec-plan-walkthrough.md
 > **Author:** Agent
 > **Source:** 20260304-context-runtime-coupling-eval.md
 > **Related Projex:** 20260226-zohruntime-run-context-design-eval.md

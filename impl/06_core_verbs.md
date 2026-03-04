@@ -15,25 +15,25 @@ VerbDriver:
   priority: int                     # Execution priority
   
   validate(call: VerbCall, context: Context): List<Diagnostic>
-  execute(call: VerbCall, context: Context): ExecutionResult
+  execute(call: VerbCall, context: Context): DriverResult
 
-ExecutionResult:
-  value: Value                # Return value
-  diagnostics: List<Diagnostic> | nothing
-
-Helpers to return ExecutionResult of nothing value and specified diagnostics:
-ok(value = nothing)
-info(code, message)
-warning(code, message)
-error(code, message)
-fatal(code, message)
+# DriverResult is defined in 09_runtime.md. Core verb drivers only ever return
+# the Complete variant (they do not suspend). Suspend is used by blocking verbs
+# such as those in 08_concurrency.md.
+#
+# Shorthand helpers (aliases for Complete) used throughout this file:
+ok(value = nothing)          →  Complete { value, [] }
+info(code, message)          →  Complete { Nothing, [Diagnostic(INFO, code, message)] }
+warning(code, message)       →  Complete { Nothing, [Diagnostic(WARNING, code, message)] }
+error(code, message)         →  Complete { Nothing, [Diagnostic(ERROR, code, message)] }
+fatal(code, message)         →  Complete { Nothing, [Diagnostic(FATAL, code, message)] }
 ```
 
 All drivers share a common pattern:
 1. Extract and validate parameters
 2. Resolve references to values, unless in rare cases references are expected
 3. Perform the operation
-4. Return ExecutionResult
+4. Return DriverResult
 
 ---
 

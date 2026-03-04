@@ -66,29 +66,53 @@ Runtime:
   
   # State
   stories: Map<string, CompiledStory>
-  contexts: List<Context>
+  contexts: List<Context>               # internal
   channelHubs: ChannelHubRegistry
   storage: PersistentStorage
   signals: SignalManager
+  elapsedMs: double                      # internal — accumulated from tick(deltaTimeMs) calls
   
   # Operations
   loadStory(path: string): CompiledStory
-  createContext(story: CompiledStory): Context
-  run(context: Context): void
-  runToCompletion(context: Context): Value
+  startContext(story: CompiledStory): ContextHandle
+  tick(deltaTimeMs: double): void
+  resume(handle: ContextHandle, value: Value): void
   shutdown(): void
   
-  # Signals
-  subscribe(name: string, context: Context): void
-  unsubscribe(name: string, context: Context): void
+  # Signals (internal — used by verb drivers, not callers)
+  subscribe(name: string, contextId: string): void
+  unsubscribe(name: string, contextId: string): void
   broadcastSignal(name: string, payload: Value): void
 
 RuntimeConfig:
   assetResolver: (address: string) -> bytes
   maxContexts: int
+  maxStatementsPerTick: int        # Statement budget per context.run() invocation
   executionTimeoutMs: int
   enableDiagnostics: bool
 ```
+
+### Public Types
+
+```
+ContextHandle:
+  id: string                    # Opaque identifier
+  state: ContextState           # Read-only current state
+
+ExecutionResult:
+  value: Value                  # Last return value
+  diagnostics: List<Diagnostic> # All diagnostics from the run
+  variables: VariableAccessor   # Lazy accessor into finished context state
+
+VariableAccessor:
+  get(name: string): Value      # Read a variable by name
+  has(name: string): bool       # Check if a variable exists
+  keys(): List<string>          # List all variable names
+```
+
+> `ContextHandle` is the only representation of a context visible to callers. It exposes read-only state sufficient for host code to identify and track contexts. Internal fields (IP, continuations, defers, delegates) are not accessible.
+>
+> `VariableAccessor` reads from the internal context on demand — no variable data is copied until accessed. Only valid on terminated contexts (from `ExecutionResult`).
 
 ---
 
@@ -344,12 +368,16 @@ CompiledValue:
 
 ---
 
-## Context Structure
+## Context Structure (Internal)
+
+> **Implementation detail.** The `Context` type is internal to the runtime. Callers interact via `ContextHandle` (see Runtime Interface). This section documents the internal execution state for implementers.
 
 ```
 Context:
   id: string                      # Unique context ID
-  runtime: Runtime                # Parent runtime
+  # Access to runtime services (verb registry, story cache, channel hubs,
+  # signal manager) is implementation-specific — back-reference, delegates,
+  # or dependency injection. Not part of the public contract.
   
   # Execution state
   currentStory: CompiledStory
@@ -490,14 +518,14 @@ Context.blockOnRequest(request: WaitRequest):
     match request:
         Sleep { durationMs }:
             state = SLEEPING
-            waitCondition = SleepCondition { wakeTime: now() + durationMs }
+            waitCondition = SleepCondition { wakeTime: runtime.elapsedMs + durationMs }
 
         ChannelPull { channelName, generation, timeoutMs }:
             hub = runtime.channelHubs.get(channelName)
             hub.waitingPullers.enqueue(this)
             state = WAITING_CHANNEL
             waitCondition = ChannelWaitCondition {
-                channelName, generation, startTime: now(), timeout: timeoutMs
+                channelName, generation, startTime: runtime.elapsedMs, timeout: timeoutMs
             }
 
         ChannelPush { channelName, seqNum, generation, timeoutMs }:
@@ -505,14 +533,14 @@ Context.blockOnRequest(request: WaitRequest):
             hub.waitingPushers.enqueue((this, seqNum))
             state = WAITING_CHANNEL_PUSH
             waitCondition = ChannelPushWaitCondition {
-                channelName, seq: seqNum, generation, startTime: now(), timeout: timeoutMs
+                channelName, seq: seqNum, generation, startTime: runtime.elapsedMs, timeout: timeoutMs
             }
 
         Signal { messageName, timeoutMs }:
             runtime.signals.subscribe(messageName, this)
             state = WAITING_MESSAGE
             waitCondition = MessageWaitCondition {
-                messageName, startTime: now(), timeout: timeoutMs
+                messageName, startTime: runtime.elapsedMs, timeout: timeoutMs
             }
 
         JoinContext { contextId }:
@@ -521,7 +549,7 @@ Context.blockOnRequest(request: WaitRequest):
 
         Host { timeoutMs }:
             state = WAITING_HOST
-            waitCondition = HostWaitCondition { startTime: now(), timeout: timeoutMs }
+            waitCondition = HostWaitCondition { startTime: runtime.elapsedMs, timeout: timeoutMs }
 
 Context.cleanupChannels():
     # Deregister from all hub participation dictionaries
@@ -558,14 +586,14 @@ Some verbs block context execution:
 | `/pull` | Channel empty | Value available, timeout, or channel closed |
 | `/wait` | No message | Message received or timeout |
 | `/call` | Forked context | Forked context terminates |
-| `/converse`, `/choose`, `/prompt` | Host interaction | Host calls `context.resume()` directly |
+| `/converse`, `/choose`, `/prompt` | Host interaction | Host calls `runtime.resume(handle, value)` |
 
 ### Tick-Loop Scheduler
 
 The scheduler is a pure condition resolver. It checks each blocked context, determines if the wait condition is met, and if so produces a `WaitOutcome` and calls `context.resume()`. No verb-specific logic lives here.
 
 ```
-Runtime.tick():
+Runtime.tick(deltaTimeMs: double):
     for context in contexts:
         if context.state != RUNNING and context.state != TERMINATED:
             token = context.resumeToken
@@ -580,7 +608,7 @@ Runtime.tick():
 resolveWait(context: Context): WaitOutcome?
     match context.state:
         SLEEPING:
-            if now() >= context.waitCondition.wakeTime:
+            if runtime.elapsedMs >= context.waitCondition.wakeTime:
                 return Completed { Nothing }
             return null
 
@@ -635,23 +663,23 @@ resolveWait(context: Context): WaitOutcome?
 
 ### Host Resume Path
 
-For `WAITING_HOST`, fulfillment is the host application's responsibility — the scheduler only checks timeout. The driver calls the host handler *before* yielding (to trigger UI); the host feeds the response back via `context.resume()`.
+For `WAITING_HOST`, fulfillment is the host application's responsibility — the scheduler only checks timeout. The verb driver calls the host handler *before* returning `Suspend`, passing a `ContextHandle`. The host feeds the response back via `runtime.resume(handle, value)`.
 
 ```
 # Host-side example (game engine / UI framework):
-# The host receives the resumeToken alongside the request.
-# It must pass it back when resuming — stale tokens are rejected.
+# The verb driver passes a ContextHandle to the host handler before suspending.
+# The host calls runtime.resume(handle, value) when the interaction completes.
+# The runtime resolves the handle, validates the resume token internally,
+# and delegates to the internal context.
 
-onChoose(context, request):
-    token = context.resumeToken
+onChoose(runtime, handle, request):
     displayChoiceUI(request, onSelected: (value) ->
-        context.resume(Completed { value }, token)
+        runtime.resume(handle, value)
     )
 
-onConverse(context, request):
-    token = context.resumeToken
+onConverse(runtime, handle, request):
     displayDialog(request, onDismissed: () ->
-        context.resume(Completed { Nothing }, token)
+        runtime.resume(handle, Nothing)
     )
 ```
 
@@ -663,12 +691,13 @@ The `WaitRequest` type decouples **blocking intent** (declared by drivers via `S
 
 ### Cooperative Tick Model
 
-The host calls `runtime.tick()` periodically. On each tick, the runtime checks each blocked context via `resolveWait()` and calls `context.resume(outcome, token)` for those whose condition is met. Suitable for game engines and any host with a natural update loop.
+The host calls `runtime.tick(deltaTimeMs)` each frame. The runtime accumulates `elapsedMs += deltaTimeMs`, then checks each blocked context via `resolveWait()` and resumes those whose condition is met. Host interactions (`WAITING_HOST`) are resumed via `runtime.resume(handle, value)`. The runtime never reads a system clock — all time is host-supplied.
 
 ```
 # Host loop (game engine example):
 while running:
-    runtime.tick()
+    dt = timeSinceLastFrame()
+    runtime.tick(dt)
     renderFrame()
     sleepUntilNextFrame()
 ```
@@ -680,6 +709,7 @@ while running:
 Each context runs as an async task. When a `Suspend` is returned, the runtime maps the `WaitRequest` to an awaitable and calls `context.resume()` when fulfilled. No external tick loop required. Suitable for servers, bots, and cloud hosts.
 
 ```
+# Internal to the runtime — not a public API.
 async runContextAsync(context: Context):
     while context.state != TERMINATED:
         context.run()

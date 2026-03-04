@@ -268,47 +268,23 @@ JumpVerbValidator:
 
 Runtime errors occur during execution:
 
+Runtime errors propagate through the `DriverResult` return value. When a driver
+returns `Complete { diagnostics }` where `hasFatal(diagnostics)` is true, the
+execution loop calls `context.terminate()`. No exception-catching is needed in
+the normal flow.
+
+See `impl/09_runtime.md` — **Execution Loop** (`Context.run()` / `Context.applyResult()`)
+for the authoritative error-handling flow.
+
 ```
-Context.executeVerb(call: CompiledVerbCall):
-  try:
-    driver = findDriver(call)
-    
-    # Execute verb (returns ExecutionResult)
-    result = driver.execute(call, this)
-    
-    # Handle diagnostics
-    if result.diagnostics.hasFatal():
-        state = FAULTED
-        diagnostics.addAll(result.diagnostics)
-        return
-    
-    # Store results
-    lastDiagnostics = result.diagnostics
-    lastReturnValue = result.value
-    
-  catch TypeMismatchError as e:
-    diagnostics.add(Diagnostic {
-      level: FATAL,
-      code: "type_mismatch",
-      message: "Type mismatch: " + e.message
-    })
-    state = FAULTED
-    
-  catch UndefinedVariableError as e:
-    diagnostics.add(Diagnostic {
-      level: FATAL,
-      code: "undefined_variable",
-      message: "Undefined variable: " + e.varName
-    })
-    state = FAULTED
-    
-  catch DivisionByZeroError as e:
-    diagnostics.add(Diagnostic {
-      level: FATAL,
-      code: "division_by_zero",
-      message: "Division by zero"
-    })
-    state = FAULTED
+# Summary of fatal escalation:
+driver.execute(call, context)
+  → Complete { Nothing, [Diagnostic(FATAL, ...)] }
+    → applyResult: hasFatal → context.terminate()
+
+# Typed exceptions (e.g. DivisionByZeroError) are caught inside the driver
+# or the expression evaluator and converted to Complete { Diagnostic(FATAL,...) }
+# before returning. They do not propagate into the execution loop.
 ```
 
 ---
