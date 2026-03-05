@@ -489,7 +489,7 @@ Context.applyResult(result: DriverResult, entryIp: int, entryStory: CompiledStor
             blockOnRequest(continuation.request)
             # state is now SLEEPING/WAITING_* — run() loop exits (state != RUNNING)
 
-# Called by the scheduler OR the host when the wait condition is met.
+# Called by the scheduler OR by runtime.resume() (host path) when the wait condition is met.
 # token must match resumeToken — rejects stale resumes (e.g., host responds
 # after timeout already advanced the context).
 Context.resume(outcome: WaitOutcome, token: int):
@@ -622,6 +622,7 @@ The scheduler is a pure condition resolver. It checks each blocked context, dete
 
 ```
 Runtime.tick(deltaTimeMs: double):
+    runtime.elapsedMs += deltaTimeMs
     for context in contexts:
         if context.state != RUNNING and context.state != TERMINATED:
             token = context.resumeToken
@@ -680,7 +681,7 @@ resolveWait(context: Context): WaitOutcome?
 
         WAITING_HOST:
             # Host-driven: the scheduler does NOT resolve this.
-            # The host calls context.resume(outcome, token) directly.
+            # Fulfillment occurs when the host calls runtime.resume(handle, value).
             # Scheduler only handles timeout if configured.
             if context.waitCondition.isTimedOut():
                 return TimedOut
@@ -732,32 +733,56 @@ while running:
 
 `Context.blockOnRequest()` populates `context.state` and `context.waitCondition`; `resolveWait()` reads them unchanged. No tick-loop logic changes are needed to support new blocking verbs.
 
-### Async Task Model
+### Async Host Pump (Adapter Pattern)
 
-Each context runs as an async task. When a `Suspend` is returned, the runtime maps the `WaitRequest` to an awaitable and calls `context.resume()` when fulfilled. No external tick loop required. Suitable for servers, bots, and cloud hosts.
+Async environments (servers, bots, CLI tools, automated tests) typically do not have a frame loop, but they still need two things:
 
+1. A mechanism to advance time for `/sleep` and timeouts (call `runtime.tick(dt)`).
+2. A safe way to accept host callbacks (UI events, network IO) that call `runtime.resume(handle, value)` without racing the runtime core.
+
+The simplest pattern is a single-threaded async pump that serializes all runtime mutation:
+
+```text
+# Host-side adapter: runs the runtime on one logical "runtime thread".
+# Any external callbacks (network/UI) enqueue resumes into this loop.
+
+AsyncRuntimePump:
+    runtime: Runtime
+    tickIntervalMs: double
+    inbox: AsyncQueue<fn()>      # actions that call runtime.resume(...)
+
+    async runUntilCancelled():
+        last = monotonicNowMs()
+        while not cancelled:
+            # Wait for either a resume action or the next tick deadline.
+            action = await inbox.tryDequeueAsync(timeoutMs: tickIntervalMs)
+
+            now = monotonicNowMs()
+            dt = now - last
+            last = now
+            runtime.tick(dt)
+
+            if action != null:
+                action()
+                # Optional flush: if resume() does not immediately run the execution loop,
+                # tick(0) continues execution without advancing time.
+                runtime.tick(0)
+
+    # Called from host callbacks (any thread/task):
+    postResume(handle, value):
+        inbox.enqueue(() -> runtime.resume(handle, value))
 ```
-# Internal to the runtime — not a public API.
-async runContextAsync(context: Context):
-    while context.state != TERMINATED:
-        context.run()
-        if context.pendingContinuation != null:
-            token = context.resumeToken
-            outcome = await fulfillAsync(context.pendingContinuation.request)
-            context.resume(outcome, token)
 
-# WaitRequest → awaitable mapping:
-async fulfillAsync(request: WaitRequest): WaitOutcome
-    match request:
-        Sleep { durationMs }      → await asyncSleep(durationMs); return Completed { Nothing }
-        ChannelPull { ... }       → return await channel.pullAsync(timeout)
-        ChannelPush { ... }       → return await channel.awaitConsumedAsync(seq, timeout)
-        Signal { messageName }    → return await signals.waitAsync(messageName, timeout)
-        JoinContext { contextId } → return Completed { await contexts.awaitTerminationAsync(contextId) }
-        Host { ... }              → return await host.awaitInteractionAsync(timeout)
-```
+Notes:
 
-> **Note:** Multi-context parallelism (`/fork`) requires a scheduler under both models — either `tick()` advancing all contexts, or spawning a new async task per forked context. `WaitRequest` does not change this requirement.
+- **Push-only host interactions:** drivers invoke host handlers before suspending; the host later calls `runtime.resume(handle, value)`. There is no host-await API.
+- **Time model:** timeouts and sleep are evaluated against `elapsedMs`, which advances only when `tick(dt)` is called. Servers can compute `dt` from a monotonic clock; tests can supply deterministic `dt`.
+- **Timeout enforcement is a host choice:** with periodic ticking you get real-time timeouts; with event-only ticking, timeouts are lazy (only observed on the next `tick()`).
+- **Serialization:** `tick()` and `resume()` must not execute concurrently unless the runtime is explicitly implemented as thread-safe.
+
+See also: `impl/scenarios/async_host_pump.md`.
+
+> **Note:** Multi-context parallelism (`/fork`) still requires a scheduler under both models — either `tick()` advancing all contexts, or a host-driven pump serializing `tick()`/`resume()` for each runtime/session. `WaitRequest` does not change this requirement.
 
 ---
 
