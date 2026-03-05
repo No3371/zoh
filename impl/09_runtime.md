@@ -404,8 +404,8 @@ Context:
   # Per-statement driver state
   statementState: Map<string, object>?  # Driver-private scratch space.
                                         # Persists across suspend/resume for the SAME statement.
-                                        # Cleared by applyResult on Complete, by terminate,
-                                        # and on story exit (jump to different story).
+                                        # Cleared by applyResult on Complete, by leaveStory(),
+                                        # and by terminate.
                                         # The runtime never reads or interprets this — only clears it.
 
   # Waiting state
@@ -509,11 +509,12 @@ Context.resume(outcome: WaitOutcome, token: int):
     # If Suspend  → re-blocks, IP stays, new continuation stored
 
 Context.terminate():
-    # Execute defers
-    executeStoryDefers()
-    executeContextDefers()
+    leaveStory()   # fires story defers, clears statementState, drops story vars
 
-    statementState = null
+    # Execute context-scoped defers (LIFO)
+    while contextDefers.count > 0:
+        verb = contextDefers.pop()
+        executeVerb(verb)
 
     # Channel cleanup
     cleanupChannels()
@@ -581,6 +582,23 @@ Context.cleanupChannels():
         hub = runtime.channelHubs.get(channelName)
         if hub != null:
             hub.waitingPushers.removeByContext(this.id)
+
+# Called whenever the context crosses a story boundary (cross-story /jump,
+# and internally by terminate()).
+# Fires all story-scoped deferred verbs in LIFO order, clears per-statement
+# driver state, then drops all story-scoped variables.
+# MUST be called before currentStory is reassigned.
+Context.leaveStory():
+    # Execute story-scoped defers (LIFO)
+    while storyDefers.count > 0:
+        verb = storyDefers.pop()
+        executeVerb(verb)
+
+    # Clear per-statement driver state
+    statementState = null
+
+    # Drop story-scoped variables
+    storyVars.clear()
 ```
 
 ---
@@ -772,7 +790,21 @@ matchesType(val: Value, expectedType: string): bool:
         "expression" -> val is ZohExpression
         _ -> false
 ```
+
+### Story Transition Protocol
+
+When a verb driver executes a cross-story `/jump` (or equivalent navigation), it must follow this sequence before returning `Complete`:
+
 ```
+# Cross-story transition — required call sequence in driver:
+context.leaveStory()                  # story defers, statementState, story vars
+context.currentStory = targetStory    # switch story
+context.instructionPointer = targetIp # set checkpoint IP (after contract validation)
+```
+
+`validateContract` must run after `leaveStory()`. At validation time, only transferred values set for the target story are available as story-scoped variables; variables from the previous story have already been cleared.
+
+`leaveStory()` is the only documented mechanism for clean story exit. Drivers that reassign `currentStory` directly without calling it violate defer execution and variable-lifetime guarantees.
 
 ---
 

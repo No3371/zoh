@@ -1,7 +1,9 @@
 # Plan: Document Story Transition Lifecycle in Runtime Spec
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Created:** 2026-03-05
+> **Completed:** 2026-03-05
+> **Walkthrough:** 20260305-story-transition-lifecycle-walkthrough.md
 > **Author:** Agent
 > **Source:** 20260304-runtime-spec-gaps-memo.md — Issue #1 (Critical)
 > **Related Projex:** 20260304-runtime-spec-gaps-memo.md, 20260304-context-runtime-coupling-eval.md
@@ -33,11 +35,11 @@ Spec authority (in priority order):
 
 ### Success Criteria
 
-- [ ] `impl/09_runtime.md` defines a `Context.leaveStory()` method with documented behavior: story defers (LIFO) → clear `statementState` → drop story variables.
-- [ ] The `Context Structure` block notes that `statementState` is also cleared by `leaveStory()` (supplements the existing complete/terminate mentions).
-- [ ] The `Context.terminate()` pseudocode is annotated to clarify it delegates story-defer firing to `leaveStory()` rather than duplicating it.
-- [ ] `JumpDriver` pseudocode (or a navigation verb section) references `leaveStory()` as the required call before switching `currentStory`.
-- [ ] All existing C# tests pass unchanged (`cd csharp && dotnet test`).
+- [x] `impl/09_runtime.md` defines a `Context.leaveStory()` method with documented behavior: story defers (LIFO) → clear `statementState` → drop story variables.
+- [x] The `Context Structure` block notes that `statementState` is also cleared by `leaveStory()` (supplements the existing complete/terminate mentions).
+- [x] The `Context.terminate()` pseudocode is annotated to clarify it delegates story-defer firing to `leaveStory()` rather than duplicating it.
+- [x] `JumpDriver` pseudocode (or a navigation verb section) references `leaveStory()` as the required call before switching `currentStory`.
+- [x] All existing C# tests pass unchanged (`cd csharp && dotnet test`).
 
 ### Out of Scope
 
@@ -222,12 +224,12 @@ The contract validation (`validateContract`) must be called *after* `leaveStory(
 
 ### Automated Checks
 
-- [ ] `cd csharp && dotnet build 2>&1 | Select-String -NotMatch "warning"` — must succeed (no source changes, but confirms doc edits didn't corrupt any embedded code snippets).
-- [ ] `cd csharp && dotnet test 2>&1 | Select-String -Pattern "passed|failed|skipped"` — all existing tests must pass.
+- [x] `cd csharp && dotnet build 2>&1 | Select-String -NotMatch "warning"` — must succeed (no source changes, but confirms doc edits didn't corrupt any embedded code snippets).
+- [x] `cd csharp && dotnet test 2>&1 | Select-String -Pattern "passed|failed|skipped"` — all existing tests must pass.
 
 ### Manual Verification
 
-- [ ] Open `impl/09_runtime.md` and confirm:
+- [x] Open `impl/09_runtime.md` and confirm:
   1. `Context.leaveStory()` pseudocode exists after `cleanupChannels()`.
   2. `Context.terminate()` calls `leaveStory()` instead of `executeStoryDefers()`.
   3. A "Story Transition Protocol" (or equivalent) subsection exists with the required call sequence.
