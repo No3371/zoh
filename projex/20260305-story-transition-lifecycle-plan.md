@@ -1,6 +1,6 @@
 # Plan: Document Story Transition Lifecycle in Runtime Spec
 
-> **Status:** Ready
+> **Status:** In Progress
 > **Created:** 2026-03-05
 > **Author:** Agent
 > **Source:** 20260304-runtime-spec-gaps-memo.md — Issue #1 (Critical)
