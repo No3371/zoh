@@ -98,6 +98,7 @@ RuntimeConfig:
 ContextHandle:
   id: string                    # Opaque identifier
   state: ContextState           # Read-only current state
+  result: ExecutionResult       # Valid only when state == TERMINATED (view final value/diagnostics/variables)
 
 ExecutionResult:
   value: Value                  # Last return value
@@ -236,7 +237,7 @@ WaitRequest:
   | ChannelPull { channelName: string, generation: int, timeoutMs: double? }
   | ChannelPush { channelName: string, seqNum: int, generation: int, timeoutMs: double? }
   | Signal      { messageName: string, timeoutMs: double? }
-  | JoinContext { contextId: string }
+  | JoinContext { handle: ContextHandle }
   | Host        { timeoutMs: double? }
 
 # What actually happened when the wait condition was fulfilled.
@@ -554,9 +555,9 @@ Context.blockOnRequest(request: WaitRequest):
                 messageName, startTime: runtime.elapsedMs, timeout: timeoutMs
             }
 
-        JoinContext { contextId }:
+        JoinContext { handle }:
             state = WAITING_CONTEXT
-            waitCondition = ContextWaitCondition { targetContextId: contextId }
+            waitCondition = ContextWaitCondition { targetHandle: handle }
 
         Host { timeoutMs }:
             state = WAITING_HOST
@@ -665,9 +666,9 @@ resolveWait(context: Context): WaitOutcome?
             return null
 
         WAITING_CONTEXT:
-            target = contexts.find(c => c.id == context.waitCondition.targetContextId)
-            if target == null or target.state == TERMINATED:
-                return Completed { target?.lastReturnValue ?? Nothing }
+            target = context.waitCondition.targetHandle
+            if target.state == TERMINATED:
+                return Completed { target.result.value }
             return null
 
         WAITING_MESSAGE:

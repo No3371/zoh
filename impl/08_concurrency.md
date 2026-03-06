@@ -267,23 +267,21 @@ CallDriver.execute(call, context):
     newContext.instructionPointer = labelIndex
 
     # Schedule new context
-    context.runtime.addContext(newContext)
+    childHandle = context.runtime.addContext(newContext)
     context.runtime.scheduleContext(newContext)
 
     # Capture references for the closure
     inlineVars = shouldInline ? initVars : []
-    childId = newContext.id
 
     # Block parent until child done — inline var copying is in onFulfilled, not the scheduler
     return Suspend {
         continuation: Continuation {
-            request: JoinContext { contextId: childId },
+            request: JoinContext { handle: childHandle },
             onFulfilled: (outcome) ->
                 match outcome:
                     Completed { value }:
                         for ref in inlineVars:
-                            childCtx = context.runtime.findContext(childId)
-                            val = childCtx?.get(ref.name) ?? Nothing
+                            val = childHandle.result.variables.get(ref.name)
                             context.set(ref.name, val)
                         Complete { value, [] }
                     Cancelled { code, message }:
