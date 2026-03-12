@@ -927,21 +927,29 @@ checkpoint:"checkpoint",
 ```
 
 #### Core.Flag
-A flag verb set named parameters for the context that is visible to all verb drivers.
+Set a named flag visible to all verb drivers.
 
-Context flags are copied to forks.
+Flags exist at two scopes:
+- **Context** (default): Visible within the current context. Copied to forks.
+- **Runtime**: Visible to all contexts and the preprocessor. Persists for the runtime's lifetime.
+
+When reading a flag, the runtime checks context scope first, then runtime scope. Context flags shadow runtime flags of the same name.
 
 #### Parameters
 - `name`: the name of the flag. Accept `"string"` or `*"string"`.
 - `value`: the value of the flag. Accept `any`. In case of reference, it takes the value of the reference.
+
+#### Attributes
+- **scope** (string: `context`/`runtime`): the scope to set the flag to. Defaults to `context` if not specified. Accept `"string"`.
 
 #### Returns
 A nothing.
 
 #### Examples
 ```
-/flag "flag_name", value;
-/flag [attr] "flag_name", *value;
+/flag "interactive", false;
+/flag [scope: "runtime"] "locale", "fr";
+/flag [scope: "context"] "instant", true;
 ```
 
 ### Sleep

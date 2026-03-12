@@ -178,6 +178,18 @@ For example, Fading is a concept useful to many verbs that start or end somethin
 *var [required]; :: this attribute does not have value
 ```
 
+# Flags
+
+Flags are named values visible to all verb drivers. Unlike variables, flags are not referenced in expressions or passed as parameters — they configure verb behavior.
+
+Flags are stored in either of 2 scopes, runtime and context:
+- Runtime: flags set by the runtime API or `/flag [scope: "runtime"]`. Persist for the runtime's lifetime. Shared across all contexts. Available to preprocessors.
+- Context: flags set by `/flag` (default). Persist for the context's lifetime. Copied to forked contexts.
+
+The runtime should lookup flags in context scope first, then runtime scope. Context flags shadow runtime flags of the same name.
+
+Flag names are case-insensitive.
+
 # Verb
 Verbs are the foundational building blocks of the language, which are the instructions to the runtime to perform actions.
 

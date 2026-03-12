@@ -12,6 +12,15 @@ In case of name conflicts, context variables are shadowed by story variables.
 
 It is recommended to be verbose and explicit when naming variables.
 
+## Flag Resolution
+
+Flags are named values visible to all verb drivers. They exist at two scopes:
+
+- **Runtime scope**: Set by the runtime API before story loading, or by `/flag [scope: "runtime"]`. Persists for the runtime's lifetime. Shared across all contexts. Available to preprocessors.
+- **Context scope**: Set by `/flag` (default). Persists for the context's lifetime. Copied to forked contexts.
+
+The runtime should lookup flags in context scope first, then runtime scope. Context flags shadow runtime flags of the same name.
+
 ## Syntactic Sugar
 
 Verbs may have syntactic sugar forms, but these only exist in the source code and should be translated to the standard form by pre-processors.
@@ -22,7 +31,7 @@ A runtime should be designed in a modular fashion that it can be extended with t
 
 ### Pre-processor
 Pre-processors are called before the runtime parser and can take action against the raw story data.
-They are provided with the story name, the metadata entries and the story body text, and can temper them in anyway.
+They are provided with the story name, the metadata entries, the story body text, and runtime-scoped flags, and can temper them in anyway.
 Pre-processors can invalidate the story by returning a fatal diagnostic.
 
 #### Standard Preprocessors
@@ -61,7 +70,7 @@ Handlers can return diagnostics to the runtime. Diagnostics are leveled in sever
 Contexts should keep a list of diagnostics, which may be used by the runtime, or other contexts in case it is a forked context.
 
 ## State Management
-Handlers should be stateless and concurrent safe. State should only exists in runtime and context.
+Handlers should be stateless and concurrent safe. State should only exist in runtime and context. Runtime state includes compiled stories, contexts, channels, signals, and runtime-scoped flags.
 
 ## Asset Management
 Asset paths should be abstracted away and assets should be identified by "address". Addresses can be file paths but not limited to.

@@ -1,9 +1,11 @@
 # Runtime-Scoped Flags — Spec Changes
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Created:** 2026-03-13
+> **Completed:** 2026-03-13
 > **Author:** Agent
 > **Source:** 20260313-runtime-scoped-flags-proposal.md
+> **Walkthrough:** 20260313-runtime-scoped-flags-spec-walkthrough.md
 > **Related Projex:** 20260313-runtime-scoped-flags-proposal.md, 20260313-embed-variable-locale-flag-proposal.md, 20260313-runtime-scoped-flags-impl-plan.md
 
 ---
@@ -27,11 +29,11 @@ More broadly, some flags describe the environment (locale, platform, debug), not
 
 ### Success Criteria
 
-- [ ] `spec/1_concepts.md` documents flag scoping (runtime and context) with fallback semantics
-- [ ] `spec/2_verbs.md` `/flag` verb accepts `[scope: "runtime"/"context"]` attribute, defaults to `"context"`
-- [ ] `spec/std_flags.md` includes `locale` standard flag
-- [ ] `spec/3_runtime.md` documents runtime flag storage, preprocessor access, and flag resolution
-- [ ] All changes are backwards compatible — existing `/flag` calls unchanged
+- [x] `spec/1_concepts.md` documents flag scoping (runtime and context) with fallback semantics
+- [x] `spec/2_verbs.md` `/flag` verb accepts `[scope: "runtime"/"context"]` attribute, defaults to `"context"`
+- [x] `spec/std_flags.md` includes `locale` standard flag
+- [x] `spec/3_runtime.md` documents runtime flag storage, preprocessor access, and flag resolution
+- [x] All changes are backwards compatible — existing `/flag` calls unchanged
 
 ### Out of Scope
 

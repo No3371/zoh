@@ -16,3 +16,8 @@ Use case: toggle of effects/animation, skipping of typewriter style dialogues, e
 The flag determines how long does the context wait to execute next verb.
 
 Defaults to `0`, which means the context instantly execute next verb once the previous verb is finished.
+
+## Locale
+The active locale identifier (BCP 47: `"fr"`, `"ja"`, `"pt-BR"`). Accept `string` or `*string`. Default to `""` (empty — no locale).
+
+Typically set at runtime scope. Available to preprocessors for path interpolation and to all contexts for locale-aware verb behavior.
