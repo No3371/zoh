@@ -1,6 +1,6 @@
 # Runtime-Scoped Flags — Spec Changes
 
-> **Status:** Ready
+> **Status:** In Progress
 > **Created:** 2026-03-13
 > **Author:** Agent
 > **Source:** 20260313-runtime-scoped-flags-proposal.md
