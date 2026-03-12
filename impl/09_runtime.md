@@ -70,6 +70,7 @@ Runtime:
   channelHubs: ChannelHubRegistry
   storage: PersistentStorage
   signals: SignalManager
+  flags: Map<string, Value>             # Runtime-scoped flags — visible to all contexts and preprocessors
   elapsedMs: double                      # internal — accumulated from tick(deltaTimeMs) calls
   
   # Operations
@@ -78,7 +79,11 @@ Runtime:
   tick(deltaTimeMs: double): void
   resume(handle: ContextHandle, value: Value): void
   shutdown(): void
-  
+
+  # Runtime flag operations
+  setFlag(name: string, value: Value): void    # Set a runtime-scoped flag
+  getFlag(name: string): Value?                # Read a runtime-scoped flag (null if not set)
+
   # Signals (internal — used by verb drivers, not callers)
   subscribe(name: string, contextId: string): void
   unsubscribe(name: string, contextId: string): void
@@ -275,7 +280,7 @@ WaitOutcome:
 │             PREPROCESSOR PHASE               │
 │  1. Load source text                         │
 │  2. For each preprocessor (priority order):  │
-│     - process(source, metadata)              │
+│     - process(source, metadata, runtimeFlags)│
 │  3. Collect diagnostics                      │
 │  4. If fatal: abort                          │
 └──────────────────────────────────────────────┘
@@ -424,6 +429,18 @@ ContextState:
   SLEEPING               # Blocked on /sleep
   TERMINATED             # Finished execution
 ```
+
+### Flag Resolution in Context
+
+When a verb driver reads a flag by name:
+
+1. Check `context.flags` — if found, return it
+2. Check `runtime.flags` — if found, return it
+3. Return null (flag not set)
+
+Context flags shadow runtime flags of the same name. This mirrors the variable resolution pattern (story scope → context scope).
+
+The `/flag` verb writes to context scope by default. With `[scope: "runtime"]`, it writes to `runtime.flags` instead.
 
 ---
 
