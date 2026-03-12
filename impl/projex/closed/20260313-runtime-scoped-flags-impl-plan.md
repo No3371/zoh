@@ -1,10 +1,12 @@
 # Runtime-Scoped Flags — Impl Spec Changes
 
-> **Status:** Ready
+> **Status:** Complete
 > **Created:** 2026-03-13
+> **Completed:** 2026-03-13
 > **Author:** Agent
 > **Source:** 20260313-runtime-scoped-flags-proposal.md
 > **Related Projex:** 20260313-runtime-scoped-flags-proposal.md, 20260313-runtime-scoped-flags-spec-plan.md
+> Partial Execution: all objectives completed via 20260313-runtime-scoped-flags-impl-patch.md
 
 ---
 
@@ -25,10 +27,10 @@ The Runtime interface has no flag storage. Context has `flags: Map<string, Value
 
 ### Success Criteria
 
-- [ ] Runtime interface includes `flags: Map<string, Value>` in its state section
-- [ ] Runtime interface includes `setFlag` and `getFlag` operations
-- [ ] Preprocessor phase in the pipeline passes `runtimeFlags` to preprocessors
-- [ ] Context section documents flag reading fallback (context → runtime)
+- [x] Runtime interface includes `flags: Map<string, Value>` in its state section
+- [x] Runtime interface includes `setFlag` and `getFlag` operations
+- [x] Preprocessor phase in the pipeline passes `runtimeFlags` to preprocessors
+- [x] Context section documents flag reading fallback (context → runtime)
 
 ### Out of Scope
 
