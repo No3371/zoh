@@ -1,4 +1,4 @@
-# Pattern Substitution Preprocessor (`#psub`)
+# Pattern Substitution Preprocessor (`#pstrsub`)
 
 > **Status:** Draft
 > **Created:** 2026-03-13
@@ -9,7 +9,7 @@
 
 ## Summary
 
-A `#psub` preprocessor directive for compile-time pattern-based string substitution. Where `#strsub` matches exact string content, `#psub` matches string literals against a pattern containing named placeholders (`{*name}`) and rewrites them using a template that references those captures. Runs alongside `#strsub` in the SubPreprocessor at priority 250, with `#strsub` taking precedence for exact matches. Primary use case: localization of strings with variable structure (numbered chapters, parameterized UI text, systematic formatting changes).
+A `#pstrsub` preprocessor directive for compile-time pattern-based string substitution. Where `#strsub` matches exact string content, `#pstrsub` matches string literals against a pattern containing named placeholders (`{*name}`) and rewrites them using a template that references those captures. Runs alongside `#strsub` in the SubPreprocessor at priority 250, with `#strsub` taking precedence for exact matches. Primary use case: localization of strings with variable structure (numbered chapters, parameterized UI text, systematic formatting changes).
 
 ---
 
@@ -34,16 +34,16 @@ No way to express "substitute all strings matching this structure" in a single d
 
 ### Why Now
 
-`#psub` is a natural companion to `#strsub`. Defining both together ensures they share processing semantics and interact cleanly. Deferring `#psub` risks `#strsub` companion files growing unwieldy for pattern-heavy content, pushing authors toward `/patch` or custom preprocessors for something the standard pipeline should handle.
+`#pstrsub` is a natural companion to `#strsub`. Defining both together ensures they share processing semantics and interact cleanly. Deferring `#pstrsub` risks `#strsub` companion files growing unwieldy for pattern-heavy content, pushing authors toward `/patch` or custom preprocessors for something the standard pipeline should handle.
 
 ---
 
 ## Proposed Change
 
-### The `#psub` Directive
+### The `#pstrsub` Directive
 
 ```zoh
-#psub "Chapter {*n}: {*title}" -> "Chapitre {*n}: {*title}";
+#pstrsub "Chapter {*n}: {*title}" -> "Chapitre {*n}: {*title}";
 ```
 
 A preprocessor directive that registers a pattern-to-template substitution. The pattern contains literal text and named placeholders. When a string literal in the source matches the full pattern, it is replaced by the template with captures inserted.
@@ -51,11 +51,11 @@ A preprocessor directive that registers a pattern-to-template substitution. The 
 **Syntax:**
 
 ```
-#psub "pattern with {*name} placeholders"
+#pstrsub "pattern with {*name} placeholders"
 -> "template with {*name} references";
 ```
 
-- Starts with `#psub` at the beginning of a line (leading whitespace allowed)
+- Starts with `#pstrsub` at the beginning of a line (leading whitespace allowed)
 - Pattern string: a ZOH string literal containing literal text and `{*name}` placeholders
 - `->` separator (same as `#strsub`)
 - Template string: a ZOH string literal containing literal text and `{*name}` back-references
@@ -91,10 +91,10 @@ Two adjacent placeholders with no literal separator between them are ambiguous �
 
 ```zoh
 :: COMPILE ERROR: ambiguous_pattern
-#psub "{*first}{*last}" -> "{*last}, {*first}";
+#pstrsub "{*first}{*last}" -> "{*last}, {*first}";
 
 :: OK: literal " " separates the captures
-#psub "{*first} {*last}" -> "{*last}, {*first}";
+#pstrsub "{*first} {*last}" -> "{*last}, {*first}";
 
 :: OK: anonymous placeholder doesn't need a boundary
 :: (still ambiguous — but {*} is explicitly "match anything remaining")
@@ -115,48 +115,48 @@ The template string can:
 
 ```zoh
 :: Rearrange: "Last, First" → "First Last"
-#psub "{*last}, {*first}" -> "{*first} {*last}";
+#pstrsub "{*last}, {*first}" -> "{*first} {*last}";
 
 :: Prefix transformation
-#psub "Ch. {*n} - {*title}" -> "Chapitre {*n} — {*title}";
+#pstrsub "Ch. {*n} - {*title}" -> "Chapitre {*n} — {*title}";
 
 :: Drop a portion
-#psub "{*speaker} says: {*line}" -> "{*line}";
+#pstrsub "{*speaker} says: {*line}" -> "{*line}";
 ```
 
 A template referencing a `{*name}` that doesn't exist in the pattern is a compile error: `undefined_capture`.
 
 ### Pipeline Position and Interaction with `#strsub`
 
-Both `#strsub` and `#psub` run in the SubPreprocessor at priority 250.
+Both `#strsub` and `#pstrsub` run in the SubPreprocessor at priority 250.
 
 **Processing order within the SubPreprocessor:**
 
 ```
-1. Collect all #strsub and #psub directives; remove from source
+1. Collect all #strsub and #pstrsub directives; remove from source
 2. Validate both sets (duplicates, malformed, ambiguous patterns)
 3. Apply #strsub (exact match) — each matched string is marked as replaced
-4. Apply #psub (pattern match) — only to strings NOT already replaced by #strsub
+4. Apply #pstrsub (pattern match) — only to strings NOT already replaced by #strsub
 5. Report diagnostics for unmatched entries
 ```
 
-**`#strsub` takes precedence.** If a string matches both a `#strsub` key and a `#psub` pattern, the `#strsub` replacement wins. This allows specific overrides:
+**`#strsub` takes precedence.** If a string matches both a `#strsub` key and a `#pstrsub` pattern, the `#strsub` replacement wins. This allows specific overrides:
 
 ```zoh
 :: Pattern: translate chapter headers
-#psub "Chapter {*n}: {*title}" -> "Chapitre {*n}: {*title}";
+#pstrsub "Chapter {*n}: {*title}" -> "Chapitre {*n}: {*title}";
 
 :: Override: special title for Chapter 7
 #strsub "Chapter 7: The Descent" -> "Chapitre 7: La Chute";
 ```
 
-"Chapter 7: The Descent" matches both, but `#strsub` wins — it gets the hand-crafted translation. All other chapters fall through to `#psub`.
+"Chapter 7: The Descent" matches both, but `#strsub` wins — it gets the hand-crafted translation. All other chapters fall through to `#pstrsub`.
 
-**Among `#psub` directives:** First matching pattern wins (declaration order). If multiple `#psub` patterns match the same string, the first declared `#psub` is applied.
+**Among `#pstrsub` directives:** First matching pattern wins (declaration order). If multiple `#pstrsub` patterns match the same string, the first declared `#pstrsub` is applied.
 
 ### Companion File Pattern
 
-`#psub` directives live in companion files alongside `#strsub`:
+`#pstrsub` directives live in companion files alongside `#strsub`:
 
 ```zoh
 :: cafe.fr.zoh
@@ -166,8 +166,8 @@ Both `#strsub` and `#psub` run in the SubPreprocessor at priority 250.
 #strsub "The cafe closes at midnight." -> "Le cafe ferme a minuit.";
 
 :: Pattern replacements
-#psub "Chapter {*n}: {*title}" -> "Chapitre {*n}: {*title}";
-#psub "{*name} whispers: {*line}" -> "{*name} chuchote: {*line}";
+#pstrsub "Chapter {*n}: {*title}" -> "Chapitre {*n}: {*title}";
+#pstrsub "{*name} whispers: {*line}" -> "{*name} chuchote: {*line}";
 ```
 
 ### What Gets Replaced
@@ -197,7 +197,7 @@ The `{*name}` syntax described above. ZOH-native, readable, self-documenting.
 ### Option B: Regex Patterns
 
 ```zoh
-#psub /Chapter (\d+): (.+)/ -> "Chapitre $1: $2";
+#pstrsub /Chapter (\d+): (.+)/ -> "Chapitre $1: $2";
 ```
 
 **Pros:**
@@ -214,7 +214,7 @@ The `{*name}` syntax described above. ZOH-native, readable, self-documenting.
 ### Option C: Hybrid — Named Placeholders with Optional Type Hints
 
 ```zoh
-#psub "Chapter {*n:int}: {*title}" -> "Chapitre {*n}: {*title}";
+#pstrsub "Chapter {*n:int}: {*title}" -> "Chapitre {*n}: {*title}";
 ```
 
 Where `{*n:int}` constrains the placeholder to match only digit sequences.
@@ -240,14 +240,14 @@ For the rare case needing regex-level pattern matching, a custom preprocessor (t
 
 | Decision | Rationale |
 |----------|-----------|
-| `#psub` naming | "pattern sub" — mirrors `#strsub` (string sub). The `p` prefix signals pattern matching. |
+| `#pstrsub` naming | "pattern sub" — mirrors `#strsub` (string sub). The `p` prefix signals pattern matching. |
 | `{*name}` placeholder syntax | Echoes ZOH's `*reference` convention. `{...}` mirrors `${...}` interpolation braces. Reads naturally in both pattern and template. |
 | Non-greedy default | Minimal matching is predictable. Greedy matching requires `{**name}` opt-in — explicit over implicit. |
 | Adjacent-placeholder prohibition | Eliminates ambiguity statically. No backtracking needed. Simple implementation. |
 | `#strsub` takes precedence | Specific overrides should win over general patterns. Predictable, no surprises. |
-| Declaration-order tiebreaker for `#psub` | Author controls priority through ordering. Simpler than specificity rules or priority attributes. |
+| Declaration-order tiebreaker for `#pstrsub` | Author controls priority through ordering. Simpler than specificity rules or priority attributes. |
 | No regex | Translators are not developers. Pattern safety and readability outweigh expressiveness. Custom preprocessors exist for power users. |
-| Full-string matching only | `#psub` replaces entire string literals, not substrings within them. Prevents surprising partial rewrites. Consistent with `#strsub`. |
+| Full-string matching only | `#pstrsub` replaces entire string literals, not substrings within them. Prevents surprising partial rewrites. Consistent with `#strsub`. |
 
 ---
 
@@ -255,13 +255,13 @@ For the rare case needing regex-level pattern matching, a custom preprocessor (t
 
 ### Affected Areas
 
-- **Spec: `1_concepts.md`** — `#psub` directive alongside `#strsub`, `#embed`, and macro
+- **Spec: `1_concepts.md`** — `#pstrsub` directive alongside `#strsub`, `#embed`, and macro
 - **Impl: `03_preprocessor.md`** — Pattern matching within SubPreprocessor
 
 ### Dependencies
 
-- **`#strsub`** (20260313-string-substitution-preprocessor-proposal.md) — `#psub` shares the SubPreprocessor and the `->` syntax convention. `#strsub` must be defined first; `#psub` extends it.
-- **`#embed?` and variable interpolation** (20260313-embed-variable-locale-flag-proposal.md) — delivery mechanism for companion files containing `#psub` directives.
+- **`#strsub`** (20260313-string-substitution-preprocessor-proposal.md) — `#pstrsub` shares the SubPreprocessor and the `->` syntax convention. `#strsub` must be defined first; `#pstrsub` extends it.
+- **`#embed?` and variable interpolation** (20260313-embed-variable-locale-flag-proposal.md) — delivery mechanism for companion files containing `#pstrsub` directives.
 
 ### Risks
 
@@ -300,7 +300,7 @@ My Novel
 **Companion (`novel.fr.zoh`):**
 ```zoh
 :: One pattern covers all chapter headers
-#psub "Chapter {*n}: {*title}" -> "Chapitre {*n}: {*title}";
+#pstrsub "Chapter {*n}: {*title}" -> "Chapitre {*n}: {*title}";
 
 :: Individual lines still need #strsub
 #strsub "The train pulled into the station at dawn."
@@ -326,9 +326,9 @@ Note: `{*title}` captures pass through unchanged — only the frame (`"Chapter"`
 ### Speaker Attribution
 
 ```zoh
-#psub "{*name} says: {*line}" -> "{*name} dit: {*line}";
-#psub "{*name} whispers: {*line}" -> "{*name} chuchote: {*line}";
-#psub "{*name} shouts: {*line}" -> "{*name} crie: {*line}";
+#pstrsub "{*name} says: {*line}" -> "{*name} dit: {*line}";
+#pstrsub "{*name} whispers: {*line}" -> "{*name} chuchote: {*line}";
+#pstrsub "{*name} shouts: {*line}" -> "{*name} crie: {*line}";
 ```
 
 Covers any speaker with these attribution patterns, regardless of name or dialogue content.
@@ -340,47 +340,47 @@ Some languages reorder sentence components:
 ```zoh
 :: English: "Welcome to {place}"
 :: Japanese: "{place}へようこそ"
-#psub "Welcome to {*place}" -> "{*place}へようこそ";
+#pstrsub "Welcome to {*place}" -> "{*place}へようこそ";
 ```
 
 ### Anonymous Wildcards
 
 ```zoh
 :: Strip the room number, keep the description
-#psub "Room {*}: {*desc}" -> "{*desc}";
+#pstrsub "Room {*}: {*desc}" -> "{*desc}";
 ```
 
 `{*}` matches the room number but discards it in the template.
 
-### Precedence: `#strsub` Over `#psub`
+### Precedence: `#strsub` Over `#pstrsub`
 
 ```zoh
-#psub "Welcome to {*place}" -> "Bienvenue a {*place}";
+#pstrsub "Welcome to {*place}" -> "Bienvenue a {*place}";
 #strsub "Welcome to The Last Coffee Shop"
 -> "Bienvenue au Dernier Cafe";
 ```
 
-`"Welcome to The Last Coffee Shop"` matches both. `#strsub` wins — the hand-crafted translation with the correct French article (`au` not `a`) is used. All other `"Welcome to X"` strings fall through to the `#psub` pattern.
+`"Welcome to The Last Coffee Shop"` matches both. `#strsub` wins — the hand-crafted translation with the correct French article (`au` not `a`) is used. All other `"Welcome to X"` strings fall through to the `#pstrsub` pattern.
 
 ---
 
 ## Open Questions
 
 - [ ] Should `{*name}` be allowed to match the empty string with an explicit modifier (e.g., `{*name?}`)? Current rule: non-empty only. Empty-match support adds edge cases.
-- [ ] Should `#psub` support a `[count:N]` attribute to limit how many strings a pattern can match? Useful for catching overly broad patterns.
+- [ ] Should `#pstrsub` support a `[count:N]` attribute to limit how many strings a pattern can match? Useful for catching overly broad patterns.
 - [ ] Should type hints (`{*n:int}`, `{*name:word}`) be included in the initial spec, or deferred as an extension?
-- [ ] Should unmatched `#psub` patterns produce a warning or be silent? Patterns are inherently more speculative than exact `#strsub` keys — a zero-match pattern might be intentional (covering content that doesn't exist yet).
-- [ ] Should `#psub` support alternation in literal portions? e.g., `"Chapter|Ch. {*n}"` matching both `"Chapter 1"` and `"Ch. 1"`. This approaches regex territory — may be better left to a future extension.
-- [ ] Naming: `#psub` vs `#patsub` vs `#ptrn`? `#psub` is concise and pairs with `#strsub`.
+- [ ] Should unmatched `#pstrsub` patterns produce a warning or be silent? Patterns are inherently more speculative than exact `#strsub` keys — a zero-match pattern might be intentional (covering content that doesn't exist yet).
+- [ ] Should `#pstrsub` support alternation in literal portions? e.g., `"Chapter|Ch. {*n}"` matching both `"Chapter 1"` and `"Ch. 1"`. This approaches regex territory — may be better left to a future extension.
+- [ ] Naming: `#pstrsub` vs `#patsub` vs `#ptrn`? `#pstrsub` is concise and pairs with `#strsub`.
 
 ---
 
 ## Next Steps
 
 If accepted:
-1. Spec: Add `#psub` directive to `1_concepts.md` alongside `#strsub`
+1. Spec: Add `#pstrsub` directive to `1_concepts.md` alongside `#strsub`
 2. Impl: Extend SubPreprocessor in `03_preprocessor.md` with pattern matching
-3. Document `#strsub`/`#psub` interaction and precedence rules
+3. Document `#strsub`/`#pstrsub` interaction and precedence rules
 4. Update companion file examples across related proposals
 
 ---
@@ -390,7 +390,7 @@ If accepted:
 ### Pattern Grammar
 
 ```ebnf
-psub_directive := '#psub' ws pattern_string ws '->' ws template_string ';'
+pstrsub_directive := '#pstrsub' ws pattern_string ws '->' ws template_string ';'
 pattern_string := string_literal  (* contains placeholder syntax *)
 template_string := string_literal  (* contains capture references *)
 

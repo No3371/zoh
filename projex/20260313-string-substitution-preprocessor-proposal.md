@@ -236,7 +236,7 @@ For the 5% of cases needing positional precision, `/patch` with structural locat
 | Collect-then-replace (two-pass) | Directive position in source doesn't matter. Cleaner than order-dependent replacement. |
 | Quote-style agnostic matching | `'text'` and `"text"` are equivalent in ZOH. The substitution map should respect this. |
 | Compile-time stale-key diagnostic | Catches orphaned translations early. The base script changed but the companion file wasn't updated. |
-| No regex support | Exact match only. Pattern-based replacement is `#psub`'s domain (see 20260313-pattern-substitution-preprocessor-proposal.md). |
+| No regex support | Exact match only. Pattern-based replacement is `#pstrsub`'s domain (see 20260313-pattern-substitution-preprocessor-proposal.md). |
 
 ### Why Not Just `/patch`?
 
@@ -387,7 +387,7 @@ Here `#strsub` handles the base French translation. `/patch` conditionally overr
 - [ ] Should `#strsub` support an optional key/tag for disambiguation (e.g., `#strsub [key:"flashback"] "source" -> "replacement";`)? Or is disambiguation exclusively `/patch`'s domain?
 - [ ] Should unmatched `#strsub` keys produce a warning (recommended) or an error? Warnings allow incremental translation; errors enforce completeness.
 - [ ] Should `#strsub` skip strings inside `#embed` path arguments? (Likely yes -- embed paths are consumed at priority 100, before `#strsub` runs. But if a future preprocessor at priority < 250 introduces path-like strings, the boundary matters.)
-- [x] ~~Naming~~ Resolved: `#strsub` (string substitute) pairs with `#psub` (pattern substitute). See 20260313-pattern-substitution-preprocessor-proposal.md.
+- [x] ~~Naming~~ Resolved: `#strsub` (string substitute) pairs with `#pstrsub` (pattern string substitute). See 20260313-pattern-substitution-preprocessor-proposal.md.
 - [ ] Should `->` be the only separator, or should `=` be accepted as an alias? `->` is more ZOH-native; `=` is more familiar to translators coming from `.strings` / `.po` workflows.
 - [ ] Should companion files support `#embed` themselves (for splitting large translation files into chapters)? The embed preprocessor runs first, so nested embeds in companion files would resolve naturally.
 - [ ] Should `#strsub` support a `?` (optional) modifier like `#embed?`? e.g., `#strsub? "text" -> "other";` that silently no-ops if the source string isn't found. This would suppress the stale-key diagnostic for intentionally optional entries.
