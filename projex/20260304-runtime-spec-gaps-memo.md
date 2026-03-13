@@ -54,3 +54,6 @@ If a deferred verb itself produces a fatal, are remaining defers skipped? Not ad
 
 - 20260304-context-runtime-coupling-eval.md
 - 20260305-story-transition-lifecycle-plan.md (Issue #1 → plan)
+- 20260305-inline-call-variable-copy-proposal.md (Issue #2 → proposal, Accepted)
+- 20260306-inline-call-handle-join-spec-plan.md (Issue #2 → impl spec plan)
+- 20260306-inline-call-handle-join-plan.md (Issue #2 → C# implementation plan)
