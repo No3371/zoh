@@ -1,6 +1,6 @@
 # Variable-Aware `#embed` and Optional Embed (`#embed?`)
 
-> **Status:** Ready
+> **Status:** In Progress
 > **Created:** 2026-03-13
 > **Author:** Agent
 > **Source:** 20260313-embed-variable-locale-flag-proposal.md (Draft)
