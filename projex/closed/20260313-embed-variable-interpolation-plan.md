@@ -1,6 +1,8 @@
 # Variable-Aware `#embed` and Optional Embed (`#embed?`)
 
-> **Status:** In Progress
+> **Status:** Complete
+> **Completed:** 2026-03-13
+> **Walkthrough:** 20260313-embed-variable-interpolation-walkthrough.md
 > **Created:** 2026-03-13
 > **Author:** Agent
 > **Source:** 20260313-embed-variable-locale-flag-proposal.md (Draft)

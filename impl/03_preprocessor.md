@@ -72,12 +72,16 @@ runtime.registerPreprocessor(MyCustomSyntax(), priority: 50)
 ```zoh
 #embed "relative/path/to/file.zoh";
 #embed "absolute/path/to/file.zoh";
+#embed "${filename}.${locale}.zoh";
+#embed? "${filename}.${locale}.zoh";
 ```
 
 - Path is relative to current file or absolute
-- File content replaces the `#embed` line
+- File content replaces the `#embed` / `#embed?` line
 - Each file can only be embedded once per resolution pass (cycle detection)
-- Throws compile error if file not found
+- `#embed`: throws compile error if file not found
+- `#embed?`: silently removes the directive if file not found (other errors remain fatal)
+- Paths may contain `${name}` interpolation — resolved before file lookup (see Step 2 below)
 
 ### Macro Definition
 
@@ -146,34 +150,76 @@ FileResolver:
     return readFile(resolved)
 ```
 
-### Step 2: Embed Processing
+### Step 2: Embed Path Interpolation
+
+Before file resolution, `${name}` placeholders in embed paths are replaced with values from the following sources, checked in order:
 
 ```
-processEmbeds(source: string, sourceFile: string, embedded: Set<string>): string
+BuiltInVars:
+  filename: string    # Base name of current file without extension
+
+InterpolationContext:
+  builtIns: BuiltInVars
+  runtimeFlags: Map<string, Value>    # From runtime-scoped flags
+  metadata: Map<string, string>       # From story header
+
+interpolatePath(path: string, ctx: InterpolationContext): string
+    return path.replaceAll(/\$\{(\w+)\}/, (match, name) =>
+        if name in ctx.builtIns:
+            return ctx.builtIns[name]
+        if name in ctx.runtimeFlags:
+            return toString(ctx.runtimeFlags[name])
+        if name in ctx.metadata:
+            return ctx.metadata[name]
+        return ""   # Unknown name resolves to empty string
+    )
+```
+
+Resolution order: built-in variables > runtime-scoped flags > story metadata > empty string.
+
+Built-in variables cannot be shadowed by flags or metadata of the same name.
+
+### Step 3: Embed Processing
+
+```
+processEmbeds(source: string, sourceFile: string, embedded: Set<string>, ctx: InterpolationContext): string
     result = StringBuilder()
     lines = source.split('\n')
-    
+
+    # Update built-in for current file
+    ctx.builtIns.filename = stripExtension(basename(sourceFile))
+
     for line in lines:
-        if matches(line, /^#embed\s+"(.+)"\s*;/):
-            path = extractPath(line)
+        if matches(line, /^#embed(\??)\s+"(.+)"\s*;/):
+            optional = match[1] == "?"
+            rawPath = match[2]
+
+            # Interpolate variables in path
+            path = interpolatePath(rawPath, ctx)
             absPath = resolve(path, sourceFile)
-            
+
             if absPath in embedded:
                 error("Circular embed: " + absPath)
-            
+
+            if not fileExists(absPath):
+                if optional:
+                    continue    # #embed? — silently skip
+                else:
+                    error("File not found: " + absPath)
+
             embedded.add(absPath)
             content = readFile(absPath)
-            
+
             # Recursively process embeds in included file
-            content = processEmbeds(content, absPath, embedded)
+            content = processEmbeds(content, absPath, embedded, ctx)
             result.append(content)
         else:
             result.append(line + '\n')
-    
+
     return result.toString()
 ```
 
-### Step 3: Macro Collection
+### Step 4: Macro Collection
 
 ```
 MacroDefinition:
@@ -200,7 +246,7 @@ collectMacros(source: string): (string, Map<string, MacroDefinition>)
     return (result.toString(), macros)
 ```
 
-### Step 4: Macro Expansion
+### Step 5: Macro Expansion
 
 ```
 expandMacros(source: string, macros: Map<string, MacroDefinition>): string
@@ -276,7 +322,7 @@ Expanded result:
     ;
 ```
 
-### Step 5: Syntactic Sugar Transformation
+### Step 6: Syntactic Sugar Transformation
 
 Transform sugar forms to standard verb calls at text level (or defer to parser):
 
@@ -384,13 +430,22 @@ buildSourceMap(operations: List<PreprocessorOp>): SourceMap
 ## Testing Checklist
 
 ### #embed
-- [ ] Basic embed: single file
+- [ ] Basic embed: single file (static path)
 - [ ] Nested embed: file A embeds B embeds C
 - [ ] Circular embed detection: A embeds A
 - [ ] Indirect circular: A embeds B embeds A
-- [ ] File not found error
+- [ ] File not found error (`#embed`)
 - [ ] Relative path resolution
 - [ ] Absolute path resolution
+- [ ] Interpolation: `${filename}` resolves to current file base name
+- [ ] Interpolation: `${flag}` resolves from runtime-scoped flags
+- [ ] Interpolation: `${meta}` resolves from story metadata
+- [ ] Interpolation: unknown `${name}` resolves to empty string
+- [ ] Interpolation: resolution order (built-in > flag > metadata)
+- [ ] Optional embed: `#embed?` skips silently when file not found
+- [ ] Optional embed: `#embed?` still errors on circular embed
+- [ ] Optional embed with interpolation: `#embed? "${filename}.${locale}.zoh";`
+- [ ] Mixed: static `#embed` and interpolated `#embed?` in same file
 
 ### #macro
 - [ ] Basic macro definition and expansion

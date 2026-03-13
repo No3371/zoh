@@ -248,7 +248,7 @@ Denoted as `#embed` in their own lines, embeds are one of the rare exceptions in
 
 The implementation should simply replace the embed syntax with the content of the designated file with a standard pre-processor.
 
-The path must be absoulute or relative to the current file.
+The path must be absolute or relative to the current file.
 
 If the file is not found, the runtime should emit a compile error.
 
@@ -257,6 +257,43 @@ During each embed resolution, each file can only be embedded once.
 ```
 #embed "relative/path/to/file.zoh";
 ```
+
+### Variable Interpolation
+
+Embed paths support `${}` interpolation:
+
+```
+#embed "${filename}.${locale}.zoh";
+```
+
+Resolution order for `${name}`:
+1. **Built-in preprocessor variables** — intrinsic values about the current file:
+   - `filename` — base name of the current file without extension (e.g., `"cafe"` for `cafe.zoh`)
+2. **Runtime-scoped flags** — flags set by the runtime API (e.g., `locale`, `platform`)
+3. **Story metadata** — metadata entries from the current story header
+4. **Empty string** — if no source has the name, resolves to `""`
+
+Variable names in `${}` follow identifier rules (alphanumeric and underscores). Unknown names resolve to empty string — they are not errors.
+
+### Optional Embed
+
+`#embed?` is the optional form — if the resolved file does not exist, the directive is silently removed (no error). Without `?`, a missing file remains a compile error.
+
+```
+#embed? "${filename}.${locale}.zoh";
+```
+
+`#embed?` suppresses only "file not found". Other errors (circular embed, read failures) are still fatal.
+
+### Example
+
+Given `cafe.zoh` with runtime flag `locale` set to `"fr"`:
+
+```
+#embed? "${filename}.${locale}.zoh";
+```
+
+`${filename}` resolves to `"cafe"`, `${locale}` resolves to `"fr"`. The directive becomes `#embed? "cafe.fr.zoh";`. If `cafe.fr.zoh` exists, its content is embedded. If not, the line is silently removed.
 
 ## Macro
 
