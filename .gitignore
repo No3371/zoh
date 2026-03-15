@@ -1,0 +1,6 @@
+*.sqlite
+.vscode
+wasm/*
+_fluid_.md
+.serena
+.projexwt/
