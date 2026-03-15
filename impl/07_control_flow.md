@@ -398,9 +398,25 @@ TryDriver.execute(call, context):
     # Execute verb and capture result
     result = executeVerb(verb, context)
 
-    # Check if fatal occurred
-    hasFatal = context.diagnostics.fatal.length > 0
+    return handleTryResult(result, catchHandler, suppressDiagnostics, context)
 
+handleTryResult(result, catchHandler, suppressDiagnostics, context):
+    if result is Suspend:
+        # Wrap the continuation to intercept the future Complete result
+        originalContinuation = result.continuation
+        wrappedContinuation = Continuation {
+            request: originalContinuation.request,
+            onFulfilled: (outcome) -> 
+                nextResult = originalContinuation.onFulfilled(outcome)
+                return handleTryResult(nextResult, catchHandler, suppressDiagnostics, context)
+        }
+        return Suspend {
+            continuation: wrappedContinuation,
+            diagnostics: result.diagnostics
+        }
+
+    # Handle Complete phase
+    hasFatal = context.diagnostics.fatal.length > 0
     if hasFatal:
         # Downgrade fatal to error (preserve original codes)
         for diagnostic in context.diagnostics.fatal:
@@ -409,9 +425,12 @@ TryDriver.execute(call, context):
 
         # Execute catch handler if provided
         if catchHandler != null:
-            result = executeVerb(catchHandler, context)
+            finalResult = executeVerb(catchHandler, context)
+            # If catch handler itself suspends, it bypasses the *outer* try's catch, 
+            # which is correct (catch handlers aren't self-catching).
+            result = finalResult
         else:
-            result = Nothing
+            result = Complete { value: Nothing, diagnostics: [] }
 
     # Apply suppress attribute
     if suppressDiagnostics:

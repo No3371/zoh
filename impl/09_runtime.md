@@ -628,7 +628,7 @@ Some verbs block context execution:
 | Verb | Block Condition | Unblock Condition |
 |------|-----------------|-------------------|
 | `/sleep` | Always | Timer expires |
-| `/push` | `wait: true` and no puller | Value consumed, timeout, or channel closed |
+| `/push` | `wait: true` and value not yet consumed | Value consumed, timeout, or channel closed |
 | `/pull` | Channel empty | Value available, timeout, or channel closed |
 | `/wait` | No message | Message received or timeout |
 | `/call` | Forked context | Forked context terminates |

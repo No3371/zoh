@@ -233,6 +233,7 @@ Diagnostics from the `catch` verb (if provided) should be appended. Therefore, i
 4. **Propagation**: If the catch verb itself produces a fatal diagnostic, that fatal terminates the context normally (not downgraded).
 5. **Return Value**: When a fatal is downgraded without a handler, the return value from the failed verb (if any was produced before the fatal) is discarded and a nothing is returned.
 6. **Diagnostics Preservation**: The downgraded diagnostics are available via `/diagnose` after `/try` completes (unless `[suppress]` is used). Original error codes are preserved.
+7. **Suspension Transparency**: If the inner verb suspends (e.g., waiting for a channel or host interaction), `/try` must propagate the suspension and resume from the same point. The downgrade, catch, and suppress logic is then applied to the eventual post-resume result.
 
 ### Core.Interpolate
 
