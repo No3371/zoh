@@ -109,10 +109,10 @@ Variable names are case-insensitive, can NOT start with digits and can NOT conta
 - \[list\]
     - A list is a collection of variables. Denoted as `[value1, value2, value3...]`.
 - \<channel\>
-    - A channel is a FIFO, concurrent safe, unbounded, global pipe managed by the runtime.
+    - A channel is a FIFO, concurrent safe, unbounded message pipe that provides async/sync in-context or cross-context communication.
     - Denoted as `<channel_name>`, which serves as a pointer to the underlying channel hub uniquely identified by "channel_name" in the channel-dedicated storage in the runtime.
     - No white space is allowed between `<` and `>`.
-    - `<channel>` points to one same logical channel for any executing contexts at the same time. Each context maintains its own outbox (push buffer) and inbox (pull buffer), coordinated by the channel hub. Contexts are auto-registered with the hub on first `/push` or `/pull`.
+    - `<channel>` points to one same logical channel for any running contexts at the same time. Each context maintains its own outbox (push buffer) and inbox (pull buffer), coordinated by the channel hub. Contexts are auto-registered with the hub on first `/push` or `/pull`.
     - A channel can be closed. New channel can be created with the same name, but does not point to the old channel. Internally, channels have `generation` to distinguish channels with same names.
 - [\`expression\`](./expr.md)
     - An expression is a special construct that can be evaluated by `/evalulate` at runtime.

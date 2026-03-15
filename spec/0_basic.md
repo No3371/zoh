@@ -45,6 +45,8 @@ The Last Coffee Shop
 
 *player_name <- "stranger";
 *trust <- 0;
+/open <stop_idle>;
+/open <ending>;
 
 :: Fork parallel contexts—the world keeps moving while you talk
 ====+ @cafe_atmosphere;
