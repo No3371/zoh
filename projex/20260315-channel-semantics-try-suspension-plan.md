@@ -1,6 +1,6 @@
 # Plan: Align Channel Semantics + `/try` Suspension Behavior (Spec + Impl Docs)
 
-> **Status:** Ready
+> **Status:** In Progress
 > **Created:** 2026-03-15
 > **Author:** Antigravity Agent
 > **Source:** `20260307-channel-semantics-try-suspension-proposal.md`
