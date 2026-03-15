@@ -6,7 +6,7 @@
 > **Reviewed:** 2026-03-15 - `20260315-channel-semantics-try-suspension-proposal-review.md`
 > **Review Outcome:** Valid - Recommended Option A. Proceeding to create actionable Plan.
 > **Source:** `20260304-runtime-spec-gaps-memo.md` (Issues **3–7**)
-> **Related Projex:** `20260211-channel-inbox-outbox-proposal.md`, `20260211-channel-inbox-outbox-spec-plan.md`, `20260211-channel-inbox-outbox-impl-spec-plan.md`, `20260301-flow-driver-continuation-fix-eval.md`, `20260315-channel-semantics-try-suspension-proposal-review.md`
+> **Related Projex:** `20260211-channel-inbox-outbox-proposal.md`, `20260211-channel-inbox-outbox-spec-plan.md`, `20260211-channel-inbox-outbox-impl-spec-plan.md`, `20260301-flow-driver-continuation-fix-eval.md`, `20260315-channel-semantics-try-suspension-proposal-review.md`, `20260315-channel-semantics-try-suspension-plan.md`
 
 ---
 
