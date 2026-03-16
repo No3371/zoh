@@ -6,6 +6,10 @@ Standard attributes are data decorations that serve two primary purposes:
 
 While their syntax looks like named parameters, they are structurally distinct (attached to the verb call itself, not the verb's arguments) and always optional at the language level (though specific verbs or runtimes may require them).
 
+## Tag
+
+Tagging a verb call with arbitrary string.
+
 ## Scope
 
 Specify the scope of the operation. Accept `"string"` or `*string`. Valid values are `context` or `story`.
