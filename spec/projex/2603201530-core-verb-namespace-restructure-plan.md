@@ -124,12 +124,12 @@ The `## Core Verbs` section is restructured into 12 h3 groups. Each verb heading
 |---|---|
 | `### Core.Evaluate` | `#### Core.Eval.Evaluate` |
 | `### Core.Interpolate` | `#### Core.Eval.Interpolate` |
-| `### Core.Do` | `#### Core.Eval.Do` |
 
 #### 3. `### Control Flow (core.flow)`
 
 | Current Heading (h3) | New Heading (h4) |
 |---|---|
+| `### Core.Do` | `#### Core.Flow.Do` |
 | `### Core.If` | `#### Core.Flow.If` |
 | `### Core.Sequence` | `#### Core.Flow.Sequence` |
 | `### Core.Loop` | `#### Core.Flow.Loop` |
