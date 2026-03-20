@@ -11,10 +11,10 @@
 
 ## Summary
 
-Closes the three spec gaps identified in the timeout exploration: `Core.Wait` lacks a default and Diagnostics section; all three timeout verbs are missing the `?` acceptance and the `<= 0` immediate-poll rule. One file changes, three verb sections touched.
+Closes spec gaps across all seven timeout verbs: `Core.Wait` lacks a default and Diagnostics section; the three core verbs are missing `?` acceptance and the `<= 0` immediate-poll rule; the four std verbs already accept `?` but are missing the default and `<= 0` rule. Two files change, seven verb sections touched.
 
-**Scope:** `spec/2_verbs.md` only — `Core.Wait`, `Channel.Push`, `Channel.Pull` sections.
-**Estimated Changes:** 1 file, 3 sections.
+**Scope:** `spec/2_verbs.md` and `spec/std_verbs.md` — all verbs with a `timeout` parameter.
+**Estimated Changes:** 2 files, 7 sections.
 
 ---
 
@@ -22,16 +22,20 @@ Closes the three spec gaps identified in the timeout exploration: `Core.Wait` la
 
 ### Problem / Gap / Need
 
-Three verbs (`Core.Wait`, `Channel.Push`, `Channel.Pull`) accept a `timeout` parameter but their specs are inconsistent and incomplete:
+Seven verbs across two files accept a `timeout` parameter but their specs are inconsistent and incomplete:
 
+**`spec/2_verbs.md`** — `Core.Wait`, `Channel.Push`, `Channel.Pull`:
 1. **`Core.Wait`** — `timeout` has no stated default, no `Optional` marker, and no Diagnostics section.
-2. **All three** — `timeout` type declaration excludes `?` even though `?` is the default meaning (no timeout).
+2. **All three** — `timeout` type declaration excludes `?` even though `?` is the intended default (no timeout).
 3. **All three** — no rule exists for `timeout <= 0`; implementors have no guidance on whether zero means "immediate poll" or is an error.
 
+**`spec/std_verbs.md`** — `Std.Converse`, `Std.Choose`, `Std.ChooseFrom`, `Std.Prompt`:
+4. **All four** — already accept `?` in type declaration, but are missing `Default to ?` and the `<= 0` rule.
+
 ### Success Criteria
-- [ ] All three verbs explicitly accept `double`, `*double`, or `?` for `timeout`
-- [ ] All three state `Optional. Default to ?` with the meaning "no timeout, blocks indefinitely"
-- [ ] All three state that `timeout <= 0` triggers an immediate timeout (poll)
+- [ ] All seven verbs state `Optional. Default to ?` with the meaning "no timeout"
+- [ ] All seven state that `timeout <= 0` triggers an immediate timeout (poll)
+- [ ] The three core verbs explicitly accept `double`, `*double`, or `?` for `timeout`
 - [ ] `Core.Wait` has a Diagnostics section listing `Info: timeout`
 - [ ] No other verb behavior is changed
 
@@ -47,20 +51,22 @@ Three verbs (`Core.Wait`, `Channel.Push`, `Channel.Pull`) accept a `timeout` par
 
 ### Current State
 
-All three verb sections use `Accept \`double\` or \`*double\`` for `timeout`, with no mention of `?` as a valid value. `Core.Wait` additionally has no `Optional`/`Default` annotation and is missing a Diagnostics section entirely.
+The three core verbs in `spec/2_verbs.md` use `Accept \`double\` or \`*double\`` for `timeout` with no `?` acceptance. `Core.Wait` additionally has no `Optional`/`Default` annotation and no Diagnostics section. The four std verbs in `spec/std_verbs.md` already accept `?` but all four are missing `Default to ?` and the `<= 0` rule.
 
 ### Key Files
 
 | File | Role | Change Summary |
 |------|------|----------------|
-| `spec/2_verbs.md` | Verb reference spec | 3 sections updated |
+| `spec/2_verbs.md` | Core verb spec | 3 sections updated (`Core.Wait`, `Channel.Push`, `Channel.Pull`) |
+| `spec/std_verbs.md` | Std verb spec | 4 sections updated (`Std.Converse`, `Std.Choose`, `Std.ChooseFrom`, `Std.Prompt`) |
 
 ### Dependencies
 - **Requires:** Nothing
 - **Blocks:** Nothing
 
 ### Constraints
-- Wording must stay consistent across all three verbs — use identical phrasing for the shared rules.
+- Wording must stay consistent across all seven verbs — use identical phrasing for the shared rules.
+- `std_verbs.md` uses `double`/`*double` slash notation (not `double` or `*double`) — preserve that style when adding the new sentences.
 
 ### Assumptions
 - `?` passed explicitly for `timeout` is semantically equivalent to omitting it (no timeout).
@@ -72,7 +78,7 @@ All three verb sections use `Accept \`double\` or \`*double\`` for `timeout`, wi
 
 ### Overview
 
-Three targeted edits to `spec/2_verbs.md`: one per verb section. `Core.Wait` requires an additional block insertion (Diagnostics). All other content in each section is untouched.
+Steps 1–3 edit `spec/2_verbs.md` (one per verb); Step 4 edits `spec/std_verbs.md` (all four std verbs share identical wording so one before/after covers all four lines). `Core.Wait` requires an additional block insertion (Diagnostics). All other content in each section is untouched.
 
 ---
 
@@ -182,22 +188,51 @@ Line 1058 — timeout parameter declaration:
 
 ---
 
+### Step 4: `Std.Converse`, `Std.Choose`, `Std.ChooseFrom`, `Std.Prompt` — add default and `<= 0` rule
+
+**Objective:** Add `Default to ?` and `<= 0` behavior to all four std verb timeout lines.
+**Confidence:** High
+**Depends on:** None (can run in any order)
+
+**Files:**
+- `spec/std_verbs.md`
+
+**Changes:**
+
+Lines 12, 52, 88, 120 — all four use identical text; apply the same change to each:
+
+```markdown
+// Before:
+- `timeout`: the duration in seconds to wait before timing out. Accept `double`/`*double` or `?`. Optional.
+
+// After:
+- `timeout`: the duration in seconds to wait before timing out. Accept `double`/`*double` or `?`. Optional. Default to `?`. A value of `?` means no timeout. A value of `0` or less triggers an immediate timeout.
+```
+
+**Rationale:** These verbs already accept `?` (ahead of the core verbs) but are missing the two behavioral rules. The slash notation (`double`/`*double`) is preserved to stay consistent with the rest of `std_verbs.md`. "No timeout" is used instead of "blocks indefinitely" because whether a std verb blocks depends on its own `Wait` attribute, not the timeout alone.
+
+**Verification:** Each of the four `timeout` lines contains `Default to \`?\`` and `0\` or less triggers an immediate timeout`.
+
+**If this fails:** Revert lines 12, 52, 88, 120 to original text.
+
+---
+
 ## Verification Plan
 
 ### Manual Verification
 - [ ] `Core.Wait` section has: Named Parameters → Parameters → Returns → Diagnostics → Examples (matches Pull structure)
-- [ ] `timeout` line in all three verbs contains `double`, `*double`, or `?`
-- [ ] `timeout` line in all three verbs contains `A value of \`?\` means no timeout`
-- [ ] `timeout` line in all three verbs contains `A value of \`0\` or less triggers an immediate timeout`
-- [ ] No other lines in the three sections changed
+- [ ] `timeout` line in the three core verbs contains `double`, `*double`, or `?`
+- [ ] `timeout` line in all seven verbs contains `Default to \`?\``
+- [ ] `timeout` line in all seven verbs contains `0\` or less triggers an immediate timeout`
+- [ ] No other lines in any of the seven sections changed
 
 ### Acceptance Criteria Validation
 
 | Criterion | How to Verify | Expected Result |
 |-----------|---------------|-----------------|
-| `?` accepted | Read `timeout` param line for each verb | `or \`?\`` present in all three |
-| Default documented | Read `timeout` param line for each verb | `Default to \`?\`` present in all three |
-| `<= 0` rule | Read `timeout` param line for each verb | `0\` or less triggers an immediate timeout` in all three |
+| `?` accepted (core) | Read `timeout` param line in `2_verbs.md` | `or \`?\`` present in all three core verbs |
+| Default documented (all) | Read `timeout` param line for each of 7 verbs | `Default to \`?\`` present in all seven |
+| `<= 0` rule (all) | Read `timeout` param line for each of 7 verbs | `0\` or less triggers an immediate timeout` in all seven |
 | Core.Wait Diagnostics | Read Core.Wait section | Diagnostics block with `Info: \`timeout\`` before Examples |
 
 ---
