@@ -2,9 +2,11 @@
 
 > **Status:** Complete
 > **Created:** 2026-03-20
+> **Completed:** 2026-03-20
 > **Author:** agent
 > **Source:** Direct request
 > **Related Projex:** 2603201600-timeout-verb-behavior-explore.md
+> **Walkthrough:** 2603201630-timeout-consistency-fixes-walkthrough.md
 > **Worktree:** No
 
 ---
