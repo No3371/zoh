@@ -117,6 +117,7 @@ The `## Core Verbs` section is restructured into 12 h3 groups. Each verb heading
 | `### Core.Type` | `#### Core.Var.Type` |
 | `### Core.Count` | `#### Core.Var.Count` |
 | `#### Core.Flag` | `#### Core.Var.Flag` |
+| `### Core.Parse` | `#### Core.Var.Parse` |
 
 #### 2. `### Evaluation (core.eval)`
 
@@ -211,13 +212,7 @@ The `## Core Verbs` section is restructured into 12 h3 groups. Each verb heading
 | — Warning | `#### Core.Debug.Warning` |
 | — Error | `#### Core.Debug.Error` |
 | — Fatal | `#### Core.Debug.Fatal` |
-
-#### 12. `### Utility (core.util)`
-
-| Current Heading (h3) | New Heading (h4) |
-|---|---|
-| `### Core.Parse` | `#### Core.Util.Parse` |
-| `### Core.Assert` | `#### Core.Util.Assert` |
+| `### Core.Assert` | `#### Core.Debug.Assert` |
 
 **Rationale:** Three-level naming (`Core.Group.Verb`) provides logical grouping while the existing suffix-based namespace resolution ensures scripts still work with short names (`/set;`, `/write;`). Document reorganization by group makes the spec navigable.
 
