@@ -974,13 +974,16 @@ A wait verb blocks until the runtime receives a message with matching name.
 A runtime may get external or internal messages that propagate to all contexts.
 
 #### Named Parameters
-- `timeout`: The timeout in seconds. Accept `double` or `*double`.
+- `timeout`: The timeout in seconds. Accept `double`, `*double`, or `?`. Optional. Default to `?`. A value of `?` means no timeout (blocks indefinitely). A value of `0` or less triggers an immediate timeout.
 
 #### Parameters
 - `name`: The name of the message to wait for. Accept `"string"` or `*"string"`.
 
 #### Returns
 The message received. Could be `integer`, `double`, `boolean`, `string`, `list`, `map`. If the timeout is reached, returns a nothing.
+
+#### Diagnostics
+- Info: `timeout`: The timeout was reached.
 
 #### Examples
 ```
@@ -1024,7 +1027,7 @@ A push verb pushes a variable to a channel. By default, the push blocks until th
 
 #### Named Parameters
 - `wait`: Whether to block until the value is consumed. Accept `boolean`. Optional. Default to `true`.
-- `timeout`: The timeout in seconds when `wait` is `true`. Accept `double` or `*double`. Optional. Default to `?`. Ignored when `wait` is `false`.
+- `timeout`: The timeout in seconds when `wait` is `true`. Accept `double`, `*double`, or `?`. Optional. Default to `?`. A value of `?` means no timeout (blocks indefinitely). A value of `0` or less triggers an immediate timeout. Ignored when `wait` is `false`.
 
 #### Parameters
 - `channel`: The channel to push to. Accept `<channel>` or `*<channel>`.
@@ -1055,7 +1058,7 @@ A nothing.
 A pull verb takes the first variable from a channel, or wait until a variable is available.
 
 #### Named Parameters
-- `timeout`: The timeout in seconds. Accept `double` or `*double`. Optional. Default to `?`.
+- `timeout`: The timeout in seconds. Accept `double`, `*double`, or `?`. Optional. Default to `?`. A value of `?` means no timeout (blocks indefinitely). A value of `0` or less triggers an immediate timeout.
 
 #### Parameters
 - `channel`: The channel to pull from. Accept `<channel>` or `*<channel>`.

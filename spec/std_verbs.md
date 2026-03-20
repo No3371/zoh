@@ -9,7 +9,7 @@ A converse verb indicates the runtime to present a text at presentation layer.
 When multiple contents are provided, the runtime should represent them sequentially in individual presentations. That is, each content is handled as if it was a separate `/converse` verb. This enables clean syntax for multiple dialog in succession.
 
 ### Named Parameters
-- `timeout`: the duration in seconds to wait before timing out. Accept `double`/`*double` or `?`. Optional.
+- `timeout`: the duration in seconds to wait before timing out. Accept `double`/`*double` or `?`. Optional. Default to `?`. A value of `?` means no timeout. A value of `0` or less triggers an immediate timeout.
 
 ### Parameters
 - Repeating of the following:
@@ -49,7 +49,7 @@ A choose verb indicates the runtime to present a choice interaction.
 
 ### Named Parameters
 - `prompt`: the prompt text. Accept `"string"`/`*"string` or `` `expr` ``/`` *`expr` ``. In case of references, the value is used. In case of `` `expr` ``, the expression is evaluated. In case of `"string"`, it performs `/interpolate` once. Optional.
-- `timeout`: the duration in seconds to wait before timing out. Accept `double`/`*double` or `?`. Optional.
+- `timeout`: the duration in seconds to wait before timing out. Accept `double`/`*double` or `?`. Optional. Default to `?`. A value of `?` means no timeout. A value of `0` or less triggers an immediate timeout.
 
 ### Parameters
 - Repeating of the following:
@@ -85,7 +85,7 @@ A chooseFrom verb indicates the runtime to present a choice interaction from a l
 
 ### Named Parameters
 - `prompt`: the prompt text. Accept `"string"`/`*"string` or `` `expr` ``/`` *`expr` ``. In case of references, the value is used. In case of `` `expr` ``, the expression is evaluated. In case of `"string"`, it performs `/interpolate` once. Optional.
-- `timeout`: the duration in seconds to wait before timing out. Accept `double`/`*double` or `?`. Optional.
+- `timeout`: the duration in seconds to wait before timing out. Accept `double`/`*double` or `?`. Optional. Default to `?`. A value of `?` means no timeout. A value of `0` or less triggers an immediate timeout.
 
 ### Parameters
 - `choices`: the choices. Accept `[list]`/`*[list]` of single entry string-any `{map}`.
@@ -117,7 +117,7 @@ A prompt verb indicates the runtime to present a text input.
 
 ### Parameters
 - `prompt`: the prompt text. Accept `"string"`/`*"string` or `` `expr` ``/`` *`expr` ``. In case of references, the value is used. In case of `` `expr` ``, the expression is evaluated. In case of `"string"`, it performs `/interpolate` once. Optional.
-- `timeout`: the duration in seconds to wait before timing out. Accept `double`/`*double` or `?`. Optional.
+- `timeout`: the duration in seconds to wait before timing out. Accept `double`/`*double` or `?`. Optional. Default to `?`. A value of `?` means no timeout. A value of `0` or less triggers an immediate timeout.
 
 ### Returns
 The string value of the input.
