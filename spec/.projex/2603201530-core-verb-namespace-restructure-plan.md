@@ -1,6 +1,6 @@
 # Core Verb Namespace Restructure
 
-> **Status:** Ready
+> **Status:** In Progress
 > **Created:** 2026-03-20
 > **Author:** Claude
 > **Source:** Direct request
