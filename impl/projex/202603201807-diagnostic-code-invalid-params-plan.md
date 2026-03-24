@@ -1,6 +1,6 @@
 # Diagnostic Code: Update `no_choices` → `invalid_params` in Impl Spec
 
-> **Status:** Draft
+> **Status:** In Progress
 > **Created:** 2026-03-20
 > **Author:** Agent
 > **Source:** Direct request
