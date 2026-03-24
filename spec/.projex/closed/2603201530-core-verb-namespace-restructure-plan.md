@@ -1,10 +1,12 @@
 # Core Verb Namespace Restructure
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Created:** 2026-03-20
+> **Completed:** 2026-03-24
 > **Author:** Claude
 > **Source:** Direct request
 > **Worktree:** No
+> **Walkthrough:** 2603201530-core-verb-namespace-restructure-walkthrough.md
 
 ---
 
@@ -32,11 +34,11 @@ There's no logical grouping — variables, flow control, persistence, and channe
 
 ### Success Criteria
 
-- [ ] Every core verb heading follows the pattern `Core.{Group}.{Name}`
-- [ ] Document is organized into h3 group sections, each containing h4 verb definitions
-- [ ] No orphan verbs without a namespace group
-- [ ] Debug verbs (Info, Warning, Error, Fatal) have individual h4 headings
-- [ ] `Core.Flag` is promoted to a full verb entry in its group
+- [x] Every core verb heading follows the pattern `Core.{Group}.{Name}`
+- [x] Document is organized into h3 group sections, each containing h4 verb definitions
+- [x] No orphan verbs without a namespace group
+- [x] Debug verbs (Info, Warning, Error, Fatal) have individual h4 headings
+- [x] `Core.Flag` is promoted to a full verb entry in its group
 
 ### Out of Scope
 
