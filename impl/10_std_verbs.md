@@ -122,7 +122,7 @@ ChooseDriver.execute(call, context):
         i += 3
 
     if choices.isEmpty():
-        return Complete { Nothing, [Diagnostic(WARNING, "no_choices", "No visible choices")] }
+        return Complete { Nothing, [Diagnostic(WARNING, "invalid_params", "No visible choices")] }
 
     # choices resolved — host driver renders UI and resumes with selected value
     return Suspend {
