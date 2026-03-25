@@ -403,6 +403,16 @@ The return value of the verb executed.
 /do /verb_returning;; :: This execute the verb returned by /verb_returning
 ```
 
+#### Condition Verb Evaluation
+
+When a flow verb accepts a `/verb` as a condition or subject parameter (e.g. `/if`, `/while`, `breakif`), the verb is executed and its result determines the condition value. The following rules apply:
+
+1. **Complete result**: The returned value is used as the condition value (existing behavior).
+2. **Suspend result**: If the condition verb suspends, the outer verb propagates the suspension unchanged. On resume, evaluation continues from the suspension point.
+3. **Fatal result**: If the condition verb produces a fatal diagnostic, the outer verb propagates the fatal unchanged (context terminates).
+
+These rules are consistent with [Suspension Transparency](#coreerrortry) under `/try` and the general runtime contract that fatal diagnostics terminate the context.
+
 #### Core.Flow.If
 A if verb conditionally executes a verb.
 
@@ -411,7 +421,7 @@ A if verb conditionally executes a verb.
 - `else`: the verb to execute if the condition is false. Accept `/verb` or `*/verb`.
 
 ##### Parameters
-- `subject`: Accept `any`. In case of reference, the value is used. In case of `` `expr` ``, it is evaluated. In case of `/verb`, the returned value is used.
+- `subject`: Accept `any`. In case of reference, the value is used. In case of `` `expr` ``, it is evaluated. In case of `/verb`, the returned value is used. See [Condition Verb Evaluation](#condition-verb-evaluation) for suspend and fatal handling.
 - `verb`: the verb to execute if the condition is true. Accept `/verb` or `*/verb`.
 
 ##### Diagnostics
@@ -438,7 +448,7 @@ A nothing.
 A sequence verb executes verbs in order.
 
 ##### Named Parameters
-- `breakif`: Optional. The condition to break the loop or execute next verb. Accept `*boolean`, `/verb`/`*verb` or `` `expr` ``/`` *`expr` ``. In case of reference, the , the value is used. In case of `` `expr` ``, it is evaluated. In case of `/verb`, the returned value is used.
+- `breakif`: Optional. The condition to break the loop or execute next verb. Accept `*boolean`, `/verb`/`*verb` or `` `expr` ``/`` *`expr` ``. In case of reference, the value is used. In case of `` `expr` ``, it is evaluated. In case of `/verb`, the returned value is used. See [Condition Verb Evaluation](#condition-verb-evaluation) for suspend and fatal handling.
 
 ##### Parameters
 - Repeating:
@@ -479,7 +489,7 @@ The return value of the last verb executed.
 A loop verb repeatedly executes a verb a specified number of times.
 
 ##### Named Parameters
-- `breakif`: Optional. The condition to break the loop or start next iteration. Accept `*boolean`, `/verb`/`*verb` or `` `expr` ``/`` *`expr` ``. In case of reference, the , the value is used. In case of `` `expr` ``, it is evaluated. In case of `/verb`, the returned value is used.
+- `breakif`: Optional. The condition to break the loop or start next iteration. Accept `*boolean`, `/verb`/`*verb` or `` `expr` ``/`` *`expr` ``. In case of reference, the value is used. In case of `` `expr` ``, it is evaluated. In case of `/verb`, the returned value is used. See [Condition Verb Evaluation](#condition-verb-evaluation) for suspend and fatal handling.
 
 ##### Parameters
 - `times`: The number of times to loop. Accept `int` or `*int`, in case of the latter, the runtime copies the value. In case of `-1`, the loop runs indefinitely. For dynamic loops, use [/while](#while) instead.
@@ -504,7 +514,7 @@ A while verb repeats a verb as long as the condition is met.
 - `is`: Value to be compared to the subject. Optional. Default to `true`. Accept `any`. In case of reference, the value is used. In case of `` `expr` ``, it is evaluated.
 
 ##### Parameters
-- `subject`: Accept `any`. In case of reference, the value is used. In case of `` `expr` ``, it is evaluated. In case of `/verb`, the returned value is used.
+- `subject`: Accept `any`. In case of reference, the value is used. In case of `` `expr` ``, it is evaluated. In case of `/verb`, the returned value is used. See [Condition Verb Evaluation](#condition-verb-evaluation) for suspend and fatal handling.
 - `verb`: the verb to execute if the condition is true. Accept `/verb` or `*/verb`.
 
 ##### Diagnostics
@@ -525,7 +535,7 @@ A nothing.
 A foreach verb iterate over a list or map and set each element to the provided reference, then execute the verb.
 
 ##### Named Parameters
-- `breakif`: Optional. The condition to break the loop or start next iteration. Accept `*boolean`, `/verb`/`*verb` or `` `expr` ``/`` *`expr` ``. In case of reference, the , the value is used. In case of `` `expr` ``, it is evaluated. In case of `/verb`, the returned value is used.
+- `breakif`: Optional. The condition to break the loop or start next iteration. Accept `*boolean`, `/verb`/`*verb` or `` `expr` ``/`` *`expr` ``. In case of reference, the value is used. In case of `` `expr` ``, it is evaluated. In case of `/verb`, the returned value is used. See [Condition Verb Evaluation](#condition-verb-evaluation) for suspend and fatal handling.
 
 ##### Parameters
 - `subject`: The list to iterate over. Accept `[list]`,`*[list]`, `{map}` or `*{map}`.
@@ -548,9 +558,9 @@ A nothing.
 A switch verb conditionally returns the value of the first matching condition case.
 
 ##### Parameters
-- `subject`: the subject to compare. Accept `/verb`, `` `expr` `` or any reference. In case of reference, the value will be used. In case of `/verb`, it takes the return value of the verb. In case of `` `expr` ``, it evaluates the expression.
+- `subject`: the subject to compare. Accept `/verb`, `` `expr` `` or any reference. In case of reference, the value will be used. In case of `/verb`, it takes the return value of the verb. In case of `` `expr` ``, it evaluates the expression. See [Condition Verb Evaluation](#condition-verb-evaluation) for suspend and fatal handling.
 - Repeating pairs of:
-    - `case`: the case to compare. Accept `any`. In case of reference, the value will be used. In case of `/verb`, it takes the return value of the verb. In case of `` `expr` ``, it evaluates the expression.
+    - `case`: the case to compare. Accept `any`. In case of reference, the value will be used. In case of `/verb`, it takes the return value of the verb. In case of `` `expr` ``, it evaluates the expression. See [Condition Verb Evaluation](#condition-verb-evaluation) for suspend and fatal handling.
     - `value`: the value to return if the case matches. Accept `any`. In case of reference, it takes the value of the reference.
 - `default`: Optional. The value to return if no case matches. Accept `any`. In case of reference, it takes the value of the reference.
 

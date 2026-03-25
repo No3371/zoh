@@ -41,7 +41,12 @@ SequenceDriver.execute(call, context):
     for param in call.unnamedParams:
         # Check break condition before each verb
         if breakCondition != null:
-            if shouldBreak(breakCondition, context):
+            breakResult = shouldBreak(breakCondition, context)
+            if breakResult is Suspend:
+                return breakResult
+            if breakResult is fatal:
+                return breakResult
+            if breakResult == true:
                 break
         
         verb = resolveToVerb(param, context)
@@ -49,13 +54,18 @@ SequenceDriver.execute(call, context):
     
     return lastResult
 
-shouldBreak(condition, context): bool | fatal
+shouldBreak(condition, context): bool | Suspend | fatal
     if condition is ReferenceValue:
         value = resolve(condition, context)
     elif condition is ExpressionValue:
         value = evaluate(condition, context)
     elif condition is VerbValue:
-        value = executeVerb(condition, context)
+        result = executeVerb(condition, context)
+        if result is Suspend:
+            return result
+        if result.isFatal:
+            return result
+        value = result.value
     else:
         value = condition
 
@@ -107,7 +117,12 @@ IfDriver.execute(call, context):
 
     # Evaluate subject if needed
     if subject is VerbValue:
-        subject = executeVerb(subject, context)
+        result = executeVerb(subject, context)
+        if result is Suspend:
+            return result
+        if result.isFatal:
+            return result
+        subject = result.value
     if subject is ExpressionValue:
         subject = evaluate(subject, context)
 
@@ -171,7 +186,12 @@ LoopDriver.execute(call, context):
     while isInfinite or iteration < times:
         # Check break condition
         if breakCondition != null:
-            if shouldBreak(breakCondition, context):
+            breakResult = shouldBreak(breakCondition, context)
+            if breakResult is Suspend:
+                return breakResult
+            if breakResult is fatal:
+                return breakResult
+            if breakResult == true:
                 break
 
         executeVerb(verb, context)
@@ -215,7 +235,12 @@ WhileDriver.execute(call, context):
         # Re-evaluate subject each iteration
         subject = resolveValue(subjectExpr, context)
         if subject is VerbValue:
-            subject = executeVerb(subject, context)
+            result = executeVerb(subject, context)
+            if result is Suspend:
+                return result
+            if result.isFatal:
+                return result
+            subject = result.value
         if subject is ExpressionValue:
             subject = evaluate(subject, context)
 
@@ -271,8 +296,14 @@ ForeachDriver.execute(call, context):
         for element in collection.elements:
             context.set(iteratorName, element)
             
-            if breakCondition != null and shouldBreak(breakCondition, context):
-                break
+            if breakCondition != null:
+                breakResult = shouldBreak(breakCondition, context)
+                if breakResult is Suspend:
+                    return breakResult
+                if breakResult is fatal:
+                    return breakResult
+                if breakResult == true:
+                    break
             
             executeVerb(verb, context)
     
@@ -282,8 +313,14 @@ ForeachDriver.execute(call, context):
             iterValue = MapValue({ key: value })
             context.set(iteratorName, iterValue)
             
-            if breakCondition != null and shouldBreak(breakCondition, context):
-                break
+            if breakCondition != null:
+                breakResult = shouldBreak(breakCondition, context)
+                if breakResult is Suspend:
+                    return breakResult
+                if breakResult is fatal:
+                    return breakResult
+                if breakResult == true:
+                    break
             
             executeVerb(verb, context)
     
