@@ -383,6 +383,86 @@ C# style string interpolation:
 /'Hello, ${*name}!';
 ```
 
+#### Core.Eval.Scan
+
+A scan verb matches an input string against a format template, capturing matched segments into references. Structural inverse of `Core.Eval.Interpolate` for the simple template subset only: format strings may contain `${*ref}` and `${*ref+}` placeholders with literal delimiters. Interpolate sub-forms (formatting specifiers, `$#{...}`, `$?{...}`, unrolling, picks, rolls) are not supported and produce `invalid_syntax`.
+
+On successful match, each placeholder's captured segment is assigned to its reference, coerced to the reference's declared type using `Core.Parse` type-parsing logic — **without** `Core.Parse`'s unconditional pre-trim. Trimming is controlled by the `trim` named parameter. Untyped references receive the captured segment as `string`. If any capture fails type coercion, the verb returns `false` and no references are modified. On mismatch, no references are modified.
+
+Literal segments between placeholders must match the input exactly (case-sensitive by default; see `nocase`). Escaping rules for producing a literal `${` in the format follow the same conventions as `Core.Eval.Interpolate`.
+
+##### Aliases
+- `/scan`
+
+##### Named Parameters
+- `nocase`: Whether literal matching ignores letter case. Accept `boolean`/`*boolean`. Optional. Default to `false`. When `true`, literal segments are compared case-insensitively using simple Unicode case-folding (no locale). Captured text preserves its original casing.
+- `trim`: Whether captured segments are whitespace-trimmed before type coercion. Accept `boolean`/`*boolean`. Optional. Default to `false`. When `true`, leading and trailing whitespace is stripped from each capture before coercion (or before assignment for untyped string refs). When `false`, the raw captured segment is passed to the type parser as-is. The set of characters constituting whitespace aligns with `Core.Parse`'s trimming definition.
+
+##### Parameters
+- `format`: The format template. Accept `string`/`*string`. Must contain at least one `${*ref}` or `${*ref+}` placeholder. Two adjacent placeholders with no literal separator between them are `invalid_syntax`.
+- `value`: The string to scan. Accept `string`/`*string`.
+
+##### Diagnostics
+- Fatal: `invalid_syntax`: Malformed format string (unclosed `${`, invalid reference name, adjacent placeholders with no separator, or unsupported Interpolate sub-forms).
+- Info: `invalid_input`: Input did not match the format pattern. Returns `false`.
+- Info: `type_coercion_failed`: A captured segment could not be parsed to the declared type of its reference. Returns `false`; no refs modified.
+
+##### Returns
+`true` if the entire input was matched and all captures were assigned. `false` on mismatch or type coercion failure. Never returns `nothing`.
+
+##### Placeholder Behavior
+- `${*ref}` (default) — Lazy: captures the shortest segment that allows the remainder of the format to match.
+- `${*ref+}` — Greedy: captures the longest segment before the next literal delimiter.
+- A capture may be the empty string if the delimiter structure still matches (e.g., format `"a${*X}b"` on input `"ab"` yields `*X = ""`).
+
+##### Examples
+```
+:: Basic — integer captures
+:: *MAJOR, *MINOR, *PATCH declared as integer
+/scan "${*MAJOR}.${*MINOR}.${*PATCH}", "1.2.3";
+:: *MAJOR = 1, *MINOR = 2, *PATCH = 3 → true
+
+:: Untyped references → string captures
+/scan "v${*VER}-${*ENV}", "v2.0.1-prod";
+:: *VER = "2.0.1", *ENV = "prod" → true
+
+:: No match
+/scan "${*A}.${*B}", "hello";
+:: no '.' in input → false; *A and *B unchanged
+
+:: Type coercion failure
+:: *COUNT declared as integer
+/scan "count=${*COUNT}", "count=abc";
+:: "abc" cannot parse as integer → false; *COUNT unchanged
+
+:: Conditional usage
+*ok <- /scan "${*MAJOR}.${*MINOR}.${*PATCH}", *version_str;
+/if *ok {
+    /show "Major: ${*MAJOR}";
+};
+
+:: Case-insensitive literal matching
+/scan nocase: true, "status=${*CODE}", "Status=OK";
+:: literals "status=" matched case-insensitively → *CODE = "OK" → true
+
+:: Whitespace — default (no trim)
+:: *NUM declared as integer
+/scan "x=${*NUM}", "x= 42 ";
+:: captured " 42 " passed as-is → integer parse fails → false
+
+:: Whitespace — trim opt-in
+/scan trim: true, "x=${*NUM}", "x= 42 ";
+:: captured " 42 " trimmed to "42" → *NUM = 42 → true
+
+:: trim with untyped reference
+/scan trim: true, "name: ${*N}", "name:  Alice ";
+:: captured " Alice " trimmed → *N = "Alice" → true
+
+:: Greedy vs lazy
+/scan "${*A}:${*B+}", "a:b:c";
+:: lazy *A captures "a" (first ':'), greedy *B+ captures "b:c" (last ':') → true
+```
+
 ### Control Flow (core.flow)
 
 #### Core.Flow.Do
